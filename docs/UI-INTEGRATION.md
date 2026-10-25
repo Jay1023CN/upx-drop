@@ -1,6 +1,6 @@
 # 界面与功能接入约定
 
-1.2.0 的界面与队列功能已接入。后续调整布局、配色、字体和动效时，可按下面的控件约定复用功能层。
+1.2.1 的界面与队列功能已接入。后续调整布局、配色、字体和动效时，可按下面的控件约定复用功能层。
 
 ## 文件分工
 
@@ -56,3 +56,5 @@ powershell -ExecutionPolicy Bypass -File .\package.ps1
 `UiFlowTests` 会操作真实的 WPF 控件，覆盖导入、筛选、取消、重试、移除、模式切换和运行中追加文件。控件结构变化时同步调整这些测试；不要仅删除失败断言。`UiSmoke` 验证两种窗口尺寸和单 EXE 离线启动。
 
 应用版本位于 `src/Updater.cs` 和 `src/AssemblyInfo.cs`，两处需要一致。匹配版本的 `v主.次.修订` 标签会触发 CI，测试通过后发布正式 Release。普通分支推送只生成构建产物。
+
+应用图标源文件是 `src/Assets/AppIcon.xaml`，窗口与页头共用此矢量资源。修改后运行 `powershell -ExecutionPolicy Bypass -File src/Assets/Export-Icon.ps1`，生成随源码提交的多尺寸 ICO 和 PNG；构建将 ICO 嵌入 EXE。

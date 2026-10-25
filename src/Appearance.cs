@@ -7,6 +7,13 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 namespace UpxDrop {
  public partial class Program {
+  void LoadBrandIcon() {
+   using (var stream = typeof(Program).Assembly.GetManifestResourceStream("AppIcon.xaml")) {
+    var icon = (DrawingImage)System.Windows.Markup.XamlReader.Load(stream);
+    icon.Freeze(); window.Icon = icon;
+    var brand = Optional<Image>("BrandIcon"); if (brand != null) brand.Source = icon;
+   }
+  }
   T Optional<T>(string name) where T : class { return window.FindName(name) as T; }
   void BindModeSelectors() {
    SetText("AppVersion", "v" + Updater.CurrentVersion);

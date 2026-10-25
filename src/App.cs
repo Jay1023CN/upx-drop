@@ -31,6 +31,7 @@ namespace UpxDrop {
   }
   void Initialize() {
    using (var stream = typeof(Program).Assembly.GetManifestResourceStream("MainWindow.xaml")) window = (Window)XamlReader.Load(stream);
+   LoadBrandIcon();
    files = Find<ListView>("Files"); details = Find<TextBox>("Details"); summary = Find<TextBlock>("Summary"); engineLabel = Find<TextBlock>("EngineLabel");
    preset = Find<ComboBox>("Preset"); mode = Find<ComboBox>("Mode"); auto = Find<CheckBox>("AutoStart");
    start = Find<Button>("StartButton"); stop = Find<Button>("StopButton"); engineButton = Find<Button>("EngineButton"); downloadButton = Find<Button>("DownloadButton");

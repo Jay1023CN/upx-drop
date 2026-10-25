@@ -11,6 +11,12 @@ class WindowsUpdateTests {
   var watch=Stopwatch.StartNew();
   while(!ready()) { if(watch.Elapsed.TotalSeconds>30) throw new Exception(message); Thread.Sleep(100); }
  }
+ static bool TryReadPid(string path, out int pid) {
+  pid = 0;
+  try { return int.TryParse(File.ReadAllText(path), out pid) && pid > 0; }
+  catch(IOException) { return false; }
+  catch(UnauthorizedAccessException) { return false; }
+ }
  static void StartUpdate(string target,string stage) {
   using(var process=Process.Start(new ProcessStartInfo(target,"\""+stage+"\" "+Updater.HashFile(stage)) { UseShellExecute=false,WorkingDirectory=Path.GetDirectoryName(target) })) {
    if(!process.WaitForExit(10000)) { process.Kill(); throw new Exception("Update fixture did not exit."); }
@@ -22,8 +28,8 @@ class WindowsUpdateTests {
   string target=Path.Combine(folder,"UPX Drop.exe"),stage=Path.Combine(folder,"new version.exe");
   File.Copy(oldExe,target); File.Copy(newExe,stage); string expected=Updater.HashFile(stage);
   StartUpdate(target,stage);
-  WaitUntil(()=>File.Exists(Path.Combine(folder,"updated.marker")),"Updated executable did not restart.");
-  int updatedPid=int.Parse(File.ReadAllText(Path.Combine(folder,"updated.marker")));
+  int updatedPid=0;
+  WaitUntil(()=>TryReadPid(Path.Combine(folder,"updated.marker"),out updatedPid),"Updated executable did not restart.");
   try { using(var process=Process.GetProcessById(updatedPid)) { if(!process.WaitForExit(5000)) throw new Exception("Updated fixture did not exit."); } } catch(ArgumentException) { }
   Check(Updater.HashFile(target)==expected,"installed EXE exactly matches verified update");
   WaitUntil(()=>!File.Exists(stage) && Directory.GetFiles(folder,"*.new*").Length==0,"Successful update did not clean staging files.");

@@ -16,7 +16,7 @@ namespace UpxDrop {
  public sealed class ReleaseAsset { public string Version, Url, ChecksumUrl, Digest; public long Size; }
  public static class Updater {
   public const string RepositoryUrl = "https://github.com/Jay1023CN/upx-drop";
-  public const string CurrentVersion = "1.2.0";
+  public const string CurrentVersion = "1.2.1";
   const string AssetName = "UpxDrop.exe";
   sealed class Client : WebClient {
    public Client() { Headers["User-Agent"] = "UpxDrop/" + CurrentVersion; Headers["Accept"] = "application/vnd.github+json"; }
@@ -112,7 +112,10 @@ namespace UpxDrop {
      + "[IO.File]::Replace($new,$target,$backup); Start-Process -FilePath $target; Remove-Item -LiteralPath $backup,$stage -Force -ErrorAction SilentlyContinue "
      + "} catch { if (Test-Path -LiteralPath $backup) { Copy-Item -LiteralPath $backup -Destination $target -Force }; $_ | Out-String | Set-Content -LiteralPath " + Quote(log) + "; } finally { if (Test-Path -LiteralPath $new) { Remove-Item -LiteralPath $new -Force } }";
     string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-    Process.Start(new ProcessStartInfo(powershell, "-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(script))) { UseShellExecute = false, CreateNoWindow = true });
+    var helper = new ProcessStartInfo(powershell, "-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(script))) { UseShellExecute = false, CreateNoWindow = true };
+    // Windows PowerShell cannot import PowerShell 7 modules inherited from a terminal.
+    helper.EnvironmentVariables["PSModulePath"] = Path.Combine(Path.GetDirectoryName(powershell), "Modules");
+    Process.Start(helper);
    } catch { if (File.Exists(replacement)) File.Delete(replacement); throw; }
   }
  }

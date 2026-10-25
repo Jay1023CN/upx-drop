@@ -1,0 +1,13 @@
+<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+ <DrawingImage.Drawing>
+  <DrawingGroup>
+   <GeometryDrawing>
+    <GeometryDrawing.Brush><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#2563EB" Offset="0"/><GradientStop Color="#4F46E5" Offset="1"/></LinearGradientBrush></GeometryDrawing.Brush>
+    <GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,64,64" RadiusX="14" RadiusY="14"/></GeometryDrawing.Geometry>
+   </GeometryDrawing>
+   <GeometryDrawing Geometry="M 20,18 L 32,28 L 44,18 M 20,46 L 32,36 L 44,46">
+    <GeometryDrawing.Pen><Pen Brush="White" Thickness="5" StartLineCap="Round" EndLineCap="Round" LineJoin="Round"/></GeometryDrawing.Pen>
+   </GeometryDrawing>
+  </DrawingGroup>
+ </DrawingImage.Drawing>
+</DrawingImage>
