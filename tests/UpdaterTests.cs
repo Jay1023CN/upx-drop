@@ -21,7 +21,7 @@ class UpdaterTests {
    string digest="sha256:"+new string('a',64);
    var asset=Updater.ParseRelease(Json("v1.2.0",false,url,digest,false,2048));
    Check(asset.Version=="1.2.0" && asset.Digest==new string('a',64),"new stable release selects exact EXE and GitHub digest");
-   Check(Updater.ParseRelease(Json("v1.1.0",false,url,digest,false,2048))==null,"equal version does not update");
+   Check(Updater.ParseRelease(Json("v"+Updater.CurrentVersion,false,url,digest,false,2048))==null,"equal version does not update");
    Check(Updater.ParseRelease(Json("v1.0.0",false,url,digest,false,2048))==null,"older version does not downgrade");
    Check(Updater.ParseRelease(Json("v2.0.0",true,url,digest,false,2048))==null,"prereleases ignored");
    Check(Updater.ParseRelease(Json("v1.2.0",false,url,null,true,2048)).ChecksumUrl!=null,"checksum asset supported when API digest absent");

@@ -35,6 +35,10 @@ if ($Test) {
  if ($LASTEXITCODE -ne 0) { throw 'Windows update test compilation failed.' }
  & "$root\work\WindowsUpdateTests.exe" "$root\work\UpdateFixture.exe" "$root\work\UpdatedFixture.exe"
  if ($LASTEXITCODE -ne 0) { throw 'Windows update replacement/rollback tests failed.' }
+ & $compiler /nologo /target:exe /utf8output /codepage:65001 /main:AppUiTests "/out:$root\work\AppUiTests.exe" @references @resources "$root\src\App.cs" "$root\src\Core.cs" "$root\src\EngineDownload.cs" "$root\src\Updater.cs" "$root\src\AssemblyInfo.cs" "$root\tests\AppUiTests.cs"
+ if ($LASTEXITCODE -ne 0) { throw 'Application UI test compilation failed.' }
+ & "$root\work\AppUiTests.exe"
+ if ($LASTEXITCODE -ne 0) { throw 'Application UI state tests failed.' }
  & $compiler /nologo /target:exe /utf8output /codepage:65001 "/out:$root\work\UiSmoke.exe" @references "$root\tests\UiSmoke.cs"
  if ($LASTEXITCODE -ne 0) { throw 'UI smoke compilation failed.' }
  & "$root\work\UiSmoke.exe" "$root\src\MainWindow.xaml" "$root\work\preview.png" "$output\UpxDrop.exe"

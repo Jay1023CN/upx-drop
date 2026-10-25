@@ -11,6 +11,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using Microsoft.Win32;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 namespace UpxDrop {
  public sealed class Entry : INotifyPropertyChanged {
   public string Path { get; set; }
@@ -25,8 +27,15 @@ namespace UpxDrop {
   void Changed(string name) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name)); }
  }
  public class Program {
+  [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr handle, int attribute, ref int value, int size);
+  static void UseDarkTitleBar(Window target) {
+   try {
+    int enabled = 1; IntPtr handle = new WindowInteropHelper(target).Handle;
+    if (DwmSetWindowAttribute(handle, 20, ref enabled, sizeof(int)) != 0) DwmSetWindowAttribute(handle, 19, ref enabled, sizeof(int));
+   } catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
+  }
   Window window; ListView files; TextBox details; TextBlock summary, engineLabel;
-  ComboBox preset, mode, overlay, icons; CheckBox auto, backup, allMethods, exports, relocs, force, autoUpdate; FrameworkElement advanced; Button start, stop, engineButton, downloadButton, updateButton;
+  ComboBox preset, mode, overlay, icons; CheckBox auto, backup, allMethods, exports, relocs, force, autoUpdate; FrameworkElement advanced; Button start, stop, engineButton, downloadButton, updateButton, retry; ProgressBar queueProgress; TextBlock queueProgressText;
   ObservableCollection<Entry> entries = new ObservableCollection<Entry>();
   CancellationTokenSource cancellation, updateCancellation; bool busy, closeRequested, updateChecking; string engine, embeddedEngine; PendingUpdate pendingUpdate;
   static string SettingFile { get { return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UpxDrop", "settings.txt"); } }
@@ -38,11 +47,14 @@ namespace UpxDrop {
   }
   void Initialize() {
    using (var stream = typeof(Program).Assembly.GetManifestResourceStream("MainWindow.xaml")) window = (Window)XamlReader.Load(stream);
+   window.SourceInitialized += delegate { UseDarkTitleBar(window); };
    files = Find<ListView>("Files"); details = Find<TextBox>("Details"); summary = Find<TextBlock>("Summary"); engineLabel = Find<TextBlock>("EngineLabel");
    preset = Find<ComboBox>("Preset"); mode = Find<ComboBox>("Mode"); auto = Find<CheckBox>("AutoStart");
    start = Find<Button>("StartButton"); stop = Find<Button>("StopButton"); engineButton = Find<Button>("EngineButton"); downloadButton = Find<Button>("DownloadButton");
    advanced = Find<FrameworkElement>("AdvancedOptions"); overlay = Find<ComboBox>("Overlay"); icons = Find<ComboBox>("Icons");
    backup = Find<CheckBox>("Backup"); allMethods = Find<CheckBox>("AllMethods"); exports = Find<CheckBox>("CompressExports"); relocs = Find<CheckBox>("StripRelocs"); force = Find<CheckBox>("Force"); autoUpdate = Find<CheckBox>("AutoUpdate"); updateButton = Find<Button>("UpdateButton");
+   retry = Find<Button>("RetryButton"); queueProgress = Find<ProgressBar>("QueueProgress"); queueProgressText = Find<TextBlock>("QueueProgressText");
+   Find<TextBlock>("VersionLabel").Text = "v" + Updater.CurrentVersion;
    engine = embeddedEngine = EngineDownload.InstallEmbedded();
    if (File.Exists(SettingFile)) {
     try { var settings = File.ReadAllLines(SettingFile); if (settings.Length >= 3) {
@@ -59,6 +71,14 @@ namespace UpxDrop {
      }
     } } catch (IOException) { } catch (UnauthorizedAccessException) { }
    }
+   entries.CollectionChanged += delegate(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) {
+    if (e.OldItems != null) foreach (Entry item in e.OldItems) item.PropertyChanged -= EntryChanged;
+    if (e.NewItems != null) foreach (Entry item in e.NewItems) item.PropertyChanged += EntryChanged;
+    UpdateQueueState();
+   };
+   mode.SelectionChanged += delegate { UpdateModeControls(); };
+   retry.Click += async delegate { if (PrepareRetry() > 0) await ProcessQueue(); };
+   UpdateQueueState(); UpdateModeControls();
    UpdateEngine(); files.ItemsSource = entries; files.SelectionChanged += delegate { ShowDetail(); };
    Find<Button>("AddButton").Click += delegate { var d = new OpenFileDialog { Filter = "Windows 程序 (*.exe;*.dll)|*.exe;*.dll", Multiselect = true }; if (d.ShowDialog(window) == true) Add(d.FileNames); };
    engineButton.Click += delegate { var d = new OpenFileDialog { Filter = "官方 UPX (upx.exe)|upx.exe" }; if (d.ShowDialog(window) == true) { engine = d.FileName; UpdateEngine(); Save(); } };
@@ -91,11 +111,11 @@ namespace UpxDrop {
    if (updateChecking) return;
    updateChecking = true; updateCancellation = new CancellationTokenSource(); updateButton.IsEnabled = false;
    try {
-    pendingUpdate = await Updater.DownloadLatestAsync(updateCancellation.Token);
+    pendingUpdate = await Updater.DownloadLatestAsync(updateCancellation.Token, new Progress<string>(message => Find<TextBlock>("UpdateStatus").Text = message));
     if (pendingUpdate != null) {
      updateButton.Content = "退出并更新";
      Find<TextBlock>("UpdateStatus").Text = "新版 " + pendingUpdate.Version + " 已校验，退出后自动更新。";
-    } else if (manual) Find<TextBlock>("UpdateStatus").Text = "未发现更新的正式版本。";
+    } else Find<TextBlock>("UpdateStatus").Text = "当前 v" + Updater.CurrentVersion + " · 暂无新版本";
    } catch (Exception ex) { if (!closeRequested) { Find<TextBlock>("UpdateStatus").Text = "更新不可用，当前版本可继续使用。"; if (manual) details.Text = ex.Message; } }
    finally { updateChecking = false; updateCancellation.Dispose(); updateCancellation = null; updateButton.IsEnabled = true; if (closeRequested && !busy) window.Close(); }
   }
@@ -107,6 +127,27 @@ namespace UpxDrop {
     using (var stream = typeof(Program).Assembly.GetManifestResourceStream(name)) if (stream != null) using (var reader = new StreamReader(stream)) text.AppendLine(reader.ReadToEnd());
    }
    new Window { Title = "关于与开源许可", Owner = window, Width = 720, Height = 560, Content = new TextBox { Text = text.ToString(), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(16) }, WindowStartupLocation = WindowStartupLocation.CenterOwner }.ShowDialog();
+  }
+  void EntryChanged(object sender, PropertyChangedEventArgs e) { if (e.PropertyName == "Status") UpdateQueueState(); }
+  void UpdateQueueState() {
+   int finished = entries.Count(e => e.Status == "已压缩" || e.Status == "已解压" || e.Status == "已跳过" || e.Status == "失败");
+   queueProgress.Maximum = Math.Max(1, entries.Count); queueProgress.Value = finished;
+   queueProgressText.Text = finished + "/" + entries.Count;
+   retry.IsEnabled = !busy && entries.Any(e => e.Status == "失败" || e.Status == "已取消");
+   start.IsEnabled = !busy && entries.Any(e => e.Status == "等待中");
+  }
+  int PrepareRetry() {
+   if (busy) return 0;
+   var retryEntries = entries.Where(e => e.Status == "失败" || e.Status == "已取消").ToList();
+   foreach (var entry in retryEntries) { entry.Status = "等待中"; entry.After = entry.Saving = "—"; }
+   return retryEntries.Count;
+  }
+  void UpdateModeControls() {
+   bool compress = mode.SelectedIndex == 0;
+   foreach (var control in new UIElement[] { preset, allMethods, exports, relocs, force, overlay, icons }) control.IsEnabled = !busy && compress;
+   backup.IsEnabled = !busy;
+   start.Content = compress ? "开始压缩  →" : "开始解压  →";
+   Find<TextBlock>("SettingsTitle").Text = compress ? "压缩设置" : "解压设置";
   }
   void UpdateEngine() { engineLabel.Text = File.Exists(engine) ? (engine == embeddedEngine ? "UPX " + EngineDownload.Version : "外部 UPX") + " · 已就绪" : "请选择官方 upx.exe"; engineLabel.ToolTip = engine; }
   void Save() { try { Directory.CreateDirectory(System.IO.Path.GetDirectoryName(SettingFile)); File.WriteAllLines(SettingFile, new[] { engine, preset.SelectedIndex.ToString(), auto.IsChecked.ToString(), backup.IsChecked.ToString(), allMethods.IsChecked.ToString(), exports.IsChecked.ToString(), relocs.IsChecked.ToString(), force.IsChecked.ToString(), overlay.SelectedIndex.ToString(), icons.SelectedIndex.ToString(), autoUpdate.IsChecked.ToString() }); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
@@ -141,7 +182,7 @@ namespace UpxDrop {
   async Task ProcessQueue() {
    if (busy || !entries.Any(e => e.Status == "等待中")) return;
    if (!File.Exists(engine)) { summary.Text = "请先配置官方 UPX 引擎。"; return; }
-   advanced.IsEnabled = false;
+   advanced.IsEnabled = false; retry.IsEnabled = false;
    busy = true; cancellation = new CancellationTokenSource(); start.IsEnabled = false; stop.IsEnabled = true; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = false;
    bool decompress = mode.SelectedIndex == 1; string level = preset.SelectedIndex == 2 ? "best" : preset.SelectedIndex == 1 ? "fast" : "balanced";
    var options = new PackOptions { Preset = level, Backup = backup.IsChecked == true, AllMethods = allMethods.IsChecked == true, CompressExports = exports.IsChecked == true, StripRelocs = relocs.IsChecked == true, Force = force.IsChecked == true, Overlay = overlay.SelectedIndex == 1 ? "strip" : overlay.SelectedIndex == 2 ? "skip" : "copy", CompressIcons = icons.SelectedIndex };
@@ -155,7 +196,7 @@ namespace UpxDrop {
       entry.Before = Size(result.Before); entry.After = Size(result.After); entry.Status = result.Status; entry.Detail = result.Detail;
       entry.Saving = result.Before == 0 ? "—" : ((result.Before - result.After) * 100.0 / result.Before).ToString("0.0") + "%";
       if (result.Status == "已跳过") skipped++; else { success++; saved += result.Before - result.After; }
-     } catch (OperationCanceledException) { entry.Status = "已取消"; entry.Detail = "本文件已取消，原文件未修改。"; }
+     } catch (OperationCanceledException) { entry.Status = "已取消"; entry.Detail = "本文件已取消，原文件未修改；可点击“重试失败项”继续。"; }
      catch (Exception ex) {
       if (ex is InvalidOperationException && (ex.Message.Contains("AlreadyPackedException") || ex.Message.Contains("NotCompressibleException"))) { entry.Status = "已跳过"; skipped++; }
       else { entry.Status = "失败"; failed++; }
@@ -164,11 +205,11 @@ namespace UpxDrop {
      ShowDetail();
     }
     bool cancelled = cancellation.IsCancellationRequested;
-    if (cancelled) foreach (var entry in entries.Where(e => e.Status == "等待中")) { entry.Status = "已取消"; entry.Detail = "尚未处理，重新添加即可。"; }
+    if (cancelled) foreach (var entry in entries.Where(e => e.Status == "等待中")) { entry.Status = "已取消"; entry.Detail = "尚未处理，可点击“重试失败项”继续。"; }
     summary.Text = string.Format("{0} · 成功 {1} / 跳过 {2} / 失败 {3}{4}", cancelled ? "已停止" : "处理完成", success, skipped, failed, saved > 0 ? " · 节省 " + Size(saved) : "");
    } finally {
     advanced.IsEnabled = true;
-    busy = false; cancellation.Dispose(); cancellation = null; start.IsEnabled = true; stop.IsEnabled = false; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = true; Save(); if (closeRequested) window.Close();
+    busy = false; cancellation.Dispose(); cancellation = null; start.IsEnabled = true; stop.IsEnabled = false; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = true; UpdateModeControls(); UpdateQueueState(); Save(); if (closeRequested) window.Close();
    }
   }
  }

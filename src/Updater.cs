@@ -16,7 +16,7 @@ namespace UpxDrop {
  public sealed class ReleaseAsset { public string Version, Url, ChecksumUrl, Digest; public long Size; }
  public static class Updater {
   public const string RepositoryUrl = "https://github.com/Jay1023CN/upx-drop";
-  public const string CurrentVersion = "1.1.0";
+  public const string CurrentVersion = "1.1.1";
   const string AssetName = "UpxDrop.exe";
   sealed class Client : WebClient {
    public Client() { Headers["User-Agent"] = "UpxDrop/" + CurrentVersion; Headers["Accept"] = "application/vnd.github+json"; }
@@ -65,17 +65,20 @@ namespace UpxDrop {
   static async Task<T> WithTimeout<T>(Client client, Task<T> task, int milliseconds) {
    await WithTimeout(client, (Task)task, milliseconds); return await task;
   }
-  public static async Task<PendingUpdate> DownloadLatestAsync(CancellationToken token = default(CancellationToken)) {
+  public static async Task<PendingUpdate> DownloadLatestAsync(CancellationToken token = default(CancellationToken), IProgress<string> progress = null) {
    ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
    using (var client = new Client()) using (token.Register(client.CancelAsync)) {
     token.ThrowIfCancellationRequested();
+    if (progress != null) progress.Report("正在检查新版本…");
     string json;
     try { json = await WithTimeout(client, client.DownloadStringTaskAsync("https://api.github.com/repos/Jay1023CN/upx-drop/releases/latest"), 30000); }
     catch (WebException ex) { var response = ex.Response as HttpWebResponse; if (response != null && response.StatusCode == HttpStatusCode.NotFound) { response.Dispose(); return null; } throw; }
+    token.ThrowIfCancellationRequested();
     var asset = ParseRelease(json);
     if (asset == null) return null;
     string expected = asset.Digest;
     if (expected == null) {
+     token.ThrowIfCancellationRequested();
      string checksum = await WithTimeout(client, client.DownloadStringTaskAsync(asset.ChecksumUrl), 30000);
      var match = Regex.Match(checksum.Trim(), "^([a-fA-F0-9]{64})[ \\t]+\\*?UpxDrop\\.exe$");
      if (!match.Success) throw new InvalidDataException("更新校验文件格式无效。");
@@ -85,6 +88,7 @@ namespace UpxDrop {
     Directory.CreateDirectory(folder); string path = Path.Combine(folder, Guid.NewGuid().ToString("N") + ".exe");
     try {
      token.ThrowIfCancellationRequested();
+     if (progress != null) { progress.Report("正在下载 v" + asset.Version + "…"); client.DownloadProgressChanged += delegate(object sender, DownloadProgressChangedEventArgs e) { progress.Report("正在下载 v" + asset.Version + " · " + e.ProgressPercentage + "%"); }; }
      await WithTimeout(client, client.DownloadFileTaskAsync(asset.Url, path), 120000);
      token.ThrowIfCancellationRequested();
      if (new FileInfo(path).Length != asset.Size || HashFile(path) != expected) throw new InvalidDataException("更新包的大小或 SHA-256 校验失败，已取消更新。");

@@ -14,7 +14,7 @@ $hash = (Get-FileHash -LiteralPath "$root\outputs\UpxDrop.exe" -Algorithm SHA256
 $source = Join-Path $root ('work\source-' + [guid]::NewGuid().ToString('N'))
 try {
  New-Item -ItemType Directory -Force $source, "$source\tools" | Out-Null
- foreach ($name in @('src','tests','.github','app.manifest','build.ps1','package.ps1','download-upx.ps1','test-native.ps1','LICENSE','README.md','THIRD_PARTY_NOTICES.md','.gitignore')) {
+ foreach ($name in @('src','tests','docs','.github','app.manifest','build.ps1','package.ps1','download-upx.ps1','test-native.ps1','LICENSE','README.md','THIRD_PARTY_NOTICES.md','.gitignore')) {
   Copy-Item -LiteralPath (Join-Path $root $name) -Destination $source -Recurse -Force
  }
  Copy-Item -LiteralPath "$root\tools\UPX-LICENSE", $officialSource -Destination "$source\tools" -Force
