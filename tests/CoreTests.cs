@@ -27,25 +27,25 @@ class CoreTests {
   if (mode==3) Thread.Sleep(3000);
   if (args[0]=="-t") return;
   Array.Resize(ref data, args[0]=="-d" ? 8192 : mode==4 ? 16384 : 1024); File.WriteAllBytes(path,data);
-  Console.WriteLine("fixture OK");
+  Console.WriteLine("fixture OK " + string.Join(" ", args));
  }
  static async Task Tests() {
   string root=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"tests-"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
   string engine=System.Reflection.Assembly.GetExecutingAssembly().Location;
   var runner=new UpxRunner(engine);
   try {
-   string path=Path.Combine(root,"���� �ո� & sample.exe"); File.WriteAllBytes(path,Pe(false,0));
+   string path=Path.Combine(root,"中文 空格 & sample.exe"); File.WriteAllBytes(path,Pe(false,0));
    var result=await runner.ProcessAsync(path,"balanced",false,CancellationToken.None);
-   Check(result.Status=="��ѹ��" && new FileInfo(path).Length==1024,"compress + Unicode/space path + atomic overwrite");
+   Check(result.Status=="已压缩" && new FileInfo(path).Length==1024,"compress + Unicode/space path + atomic overwrite");
    Check(Directory.GetFiles(root).Length==1,"no backup or temporary leftovers");
    result=await runner.ProcessAsync(path,"balanced",true,CancellationToken.None);
-   Check(result.Status=="�ѽ�ѹ" && new FileInfo(path).Length==8192,"decompression path");
+   Check(result.Status=="已解压" && new FileInfo(path).Length==8192,"decompression path");
    File.WriteAllBytes(path,Pe(true,0)); result=await runner.ProcessAsync(path,"balanced",false,CancellationToken.None);
-   Check(result.Status=="������" && new FileInfo(path).Length==8192,"signed PE skipped");
+   Check(result.Status=="已跳过" && new FileInfo(path).Length==8192,"signed PE skipped");
    foreach(byte behavior in new byte[]{1,2,4}) {
     byte[] original=Pe(false,behavior); File.WriteAllBytes(path,original); bool threw=false;
     try { result=await runner.ProcessAsync(path,"balanced",false,CancellationToken.None); } catch(InvalidOperationException) { threw=true; }
-    Check(behavior==4 ? result.Status=="������" : threw,"UPX failure/test failure/no saving "+behavior);
+    Check(behavior==4 ? result.Status=="已跳过" : threw,"UPX failure/test failure/no saving "+behavior);
     Check(Convert.ToBase64String(File.ReadAllBytes(path))==Convert.ToBase64String(original),"original preserved "+behavior);
    }
    File.WriteAllBytes(path,Pe(false,3)); using(var cancel=new CancellationTokenSource(200)) {
@@ -63,6 +63,21 @@ class CoreTests {
    try { await runner.ProcessAsync(path,"balanced",false,CancellationToken.None); } catch(InvalidOperationException) { readOnly=true; }
    finally { File.SetAttributes(path,FileAttributes.Normal); }
    Check(readOnly,"read-only rejected");
+   var options = new PackOptions { Preset="best", Backup=true, AllMethods=true, Force=true, CompressExports=false, StripRelocs=false, CompressIcons=3, Overlay="strip" };
+   byte[] backedUp=Pe(false,0); File.WriteAllBytes(path,backedUp);
+   result=await runner.ProcessAsync(path,options,false,CancellationToken.None);
+   var backups=Directory.GetFiles(root,"*.bak");
+   Check(backups.Length==1 && Convert.ToBase64String(File.ReadAllBytes(backups[0]))==Convert.ToBase64String(backedUp),"backup preserves exact original bytes");
+   Check(result.Detail.Contains("--best --all-methods --force --compress-exports=0 --strip-relocs=0 --compress-icons=3 --overlay=strip"),"all advanced options reach child process");
+   result=await runner.ProcessAsync(path,options,true,CancellationToken.None);
+   Check(Directory.GetFiles(root,"*.bak").Length==2 && new FileInfo(backups[0]).Length==8192,"decompression backup does not overwrite existing backup");
+   Check(result.Detail.Contains("fixture OK -d ") && !result.Detail.Contains("--force"),"decompression excludes compression options");
+   options.Overlay="invalid"; bool invalidOptions=false;
+   try { options.Arguments(false); } catch(ArgumentException) { invalidOptions=true; }
+   Check(invalidOptions,"unknown overlay cannot become a command argument");
+   options.Overlay="copy"; options.CompressIcons=4; invalidOptions=false;
+   try { options.Arguments(false); } catch(ArgumentException) { invalidOptions=true; }
+   Check(invalidOptions,"out of range icon option rejected");
    Check(Directory.GetFiles(root,".upxdrop-*").Length==0,"all error/cancel temporary files cleaned");
   } finally { Directory.Delete(root,true); }
  }
