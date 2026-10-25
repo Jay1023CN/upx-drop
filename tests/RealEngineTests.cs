@@ -37,7 +37,7 @@ class RealEngineTests {
   if(Environment.OSVersion.Platform!=PlatformID.Win32NT) { Console.Error.WriteLine("Windows is required; test was not run."); return 2; }
   string root=Path.Combine(Path.GetTempPath(),"upxdrop-real-engine-"+Guid.NewGuid().ToString("N"));
   try { Tests(args[0],root).GetAwaiter().GetResult(); Console.WriteLine(passed+" real Windows engine checks passed"); return 0; }
-  catch(Exception ex) { Console.Error.WriteLine(ex); return 1; }
+  catch(Exception ex) { Console.WriteLine("::error::"+ex.ToString().Replace("%","%25").Replace("\r","%0D").Replace("\n","%0A")); Console.Error.WriteLine(ex); return 1; }
   finally { if(Directory.Exists(root)) Directory.Delete(root,true); }
  }
 }
