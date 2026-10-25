@@ -7,16 +7,56 @@ permissions:
   contents: read
 jobs:
   build:
+    # Same-repository PRs reuse the branch push checks; fork PRs still run here.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        run: |
+          $source = Get-Content src/Updater.cs -Raw
+          $version = [regex]::Match($source, 'CurrentVersion = "([^"]+)"').Groups[1].Value
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match Updater.CurrentVersion.' }
+          $assembly = Get-Content src/AssemblyInfo.cs -Raw
+          if ($assembly -notmatch ('AssemblyFileVersion\("' + [regex]::Escape($version) + '\.0"\)')) { throw 'Assembly version must match updater version.' }
       - name: Build and test
         shell: powershell
         run: .\build.ps1 -Test
-      - name: Package lightweight release and matching source
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Verify real Windows UPX compression, decompression and backups
+        shell: powershell
+        run: .\test-native.ps1
+      - name: Package single EXE, checksum and matching source
         shell: powershell
         run: .\package.ps1
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: UpxDrop-1.0.0
-          path: outputs/UpxDrop-1.0.0.zip
+          name: UpxDrop-Windows
+          path: |
+            outputs/UpxDrop.exe
+            outputs/UpxDrop.exe.sha256
+            outputs/*-source.zip
+            work/preview*.png
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: UpxDrop-Windows
+          path: release-files
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release-files/outputs/UpxDrop.exe
+            release-files/outputs/UpxDrop.exe.sha256
+            release-files/outputs/*-source.zip
+          fail_on_unmatched_files: true
