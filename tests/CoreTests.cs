@@ -37,6 +37,7 @@ class CoreTests {
    string path=Path.Combine(root,"中文 空格 & sample.exe"); File.WriteAllBytes(path,Pe(false,0));
    var result=await runner.ProcessAsync(path,"balanced",false,CancellationToken.None);
    Check(result.Status=="已压缩" && new FileInfo(path).Length==1024,"compress + Unicode/space path + atomic overwrite");
+   Check(!result.Detail.Contains(root),"engine receives temporary basename instead of Unicode absolute path");
    Check(Directory.GetFiles(root).Length==1,"no backup or temporary leftovers");
    result=await runner.ProcessAsync(path,"balanced",true,CancellationToken.None);
    Check(result.Status=="已解压" && new FileInfo(path).Length==8192,"decompression path");

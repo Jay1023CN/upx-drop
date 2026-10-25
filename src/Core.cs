@@ -10,7 +10,8 @@ namespace UpxDrop {
  public sealed class PackOptions {
   public string Preset = "balanced";
   public bool Backup, AllMethods, Force;
-  public bool CompressExports = true, StripRelocs = true;
+  public bool CompressExports = true;
+  public bool StripRelocs;
   public string Overlay = "copy";
   public int CompressIcons = 2;
   public string Arguments(bool decompress) {
@@ -49,7 +50,9 @@ namespace UpxDrop {
    }
   }
   async Task<string> Run(string options, string path, CancellationToken token) {
-   var info = new ProcessStartInfo(engine, options + " \"" + path + "\"") {
+   // Native UPX argv uses the system code page. Keep its argument ASCII and
+   // let CreateProcessW set the Unicode working directory containing the copy.
+   var info = new ProcessStartInfo(engine, options + " \"" + Path.GetFileName(path) + "\"") {
     UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
     StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, WorkingDirectory = Path.GetDirectoryName(path)
    };

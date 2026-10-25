@@ -8,6 +8,12 @@ using UpxDrop;
 class RealEngineTests {
  static int passed;
  static void Check(bool value,string message) { if(!value) throw new Exception(message); passed++; Console.WriteLine("PASS "+message); }
+ static bool HasAslr(string exe) {
+  using(var input=File.OpenRead(exe)) using(var reader=new BinaryReader(input)) {
+   input.Position=0x3c; long pe=reader.ReadUInt32(); input.Position=pe+24+70;
+   return (reader.ReadUInt16() & 0x40)!=0;
+  }
+ }
  static string Run(string exe) {
   using(var process=Process.Start(new ProcessStartInfo(exe) { UseShellExecute=false,RedirectStandardOutput=true,CreateNoWindow=true })) {
    Task<string> output=process.StandardOutput.ReadToEndAsync();
@@ -21,11 +27,13 @@ class RealEngineTests {
   string exe=Path.Combine(folder,"sample & fixture.exe"); File.Copy(source,exe);
   byte[] original=File.ReadAllBytes(exe); string expected=Run(exe);
   Check(expected.Trim()=="UPX Drop native fixture: 6","uncompressed native fixture executes");
+  Check(HasAslr(exe),"native fixture starts with ASLR enabled");
   string engine=EngineDownload.InstallEmbedded(Path.Combine(root,"engine"));
   var runner=new UpxRunner(engine); var options=new PackOptions { Backup=true };
   var packed=await runner.ProcessAsync(exe,options,false,CancellationToken.None);
   Check(packed.Status=="已压缩" && new FileInfo(exe).Length<original.Length,"official Windows UPX compresses native PE with default options");
   Check(Run(exe)==expected,"compressed native executable retains behavior");
+  Check(HasAslr(exe),"default compression preserves ASLR");
   string[] backups=Directory.GetFiles(folder,"*.bak");
   Check(backups.Length==1 && Convert.ToBase64String(File.ReadAllBytes(backups[0]))==Convert.ToBase64String(original),"real compression backup preserves original bytes");
   var unpacked=await runner.ProcessAsync(exe,options,true,CancellationToken.None);
