@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+﻿// SPDX-License-Identifier: GPL-2.0-or-later
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -14,17 +14,17 @@ class UiSmoke {
    using(var stream=File.OpenRead(args[0])) window=(Window)XamlReader.Load(stream);
    foreach(string name in new[]{"Files","Mode","Preset","DownloadButton","EngineButton","StartButton","StopButton","AutoStart","AdvancedOptions","Backup","AllMethods","CompressExports","StripRelocs","Force","Overlay","Icons","AutoUpdate","UpdateButton","UpdateStatus","ProjectButton","LicenseButton"}) if(window.FindName(name)==null) throw new Exception("Missing UI control: "+name);
    var content=(System.Windows.Controls.Grid)window.Content; content.Background=window.Background;
-   foreach(int width in new[]{1140,1000}) {
-    int height=width==1140 ? 780 : 700;
+   foreach(int width in new[]{1180,1060}) {
+    int height=width==1180 ? 780 : 700;
     content.Measure(new Size(width,height)); content.Arrange(new Rect(0,0,width,height)); content.UpdateLayout();
-    foreach(string name in new[]{"Files","StartButton","ProjectButton","UpdateButton","UpdateStatus"}) {
+    foreach(string name in new[]{"Files","StartButton","ProjectButton","UpdateButton","UpdateStatus","FolderButton","RetryButton","RemoveButton","ExportButton","SearchBox","StatusFilter","QueueProgress"}) {
      var element=(FrameworkElement)window.FindName(name);
      Rect bounds=element.TransformToAncestor(content).TransformBounds(new Rect(element.RenderSize));
      if(bounds.Left < -1 || bounds.Top < -1 || bounds.Right > width+1 || bounds.Bottom > height+1) throw new Exception("Clipped UI control: "+name+" at "+width);
     }
     var image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); image.Render(content);
     var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
-    string path=width==1140 ? args[1] : Path.Combine(Path.GetDirectoryName(args[1]),"preview-compact.png");
+    string path=width==1180 ? args[1] : Path.Combine(Path.GetDirectoryName(args[1]),"preview-compact.png");
     using(var output=File.Create(path)) encoder.Save(output);
    }
    Console.WriteLine("PASS XAML controls resolve and layout renders at normal and compact sizes");

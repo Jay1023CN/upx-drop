@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-2.0-or-later
+﻿# SPDX-License-Identifier: GPL-2.0-or-later
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 & "$root\build.ps1"
@@ -14,10 +14,15 @@ $hash = (Get-FileHash -LiteralPath "$root\outputs\UpxDrop.exe" -Algorithm SHA256
 $source = Join-Path $root ('work\source-' + [guid]::NewGuid().ToString('N'))
 try {
  New-Item -ItemType Directory -Force $source, "$source\tools" | Out-Null
- foreach ($name in @('src','tests','.github','app.manifest','build.ps1','package.ps1','download-upx.ps1','test-native.ps1','LICENSE','README.md','THIRD_PARTY_NOTICES.md','.gitignore')) {
+ foreach ($name in @('src','tests','docs','.github','app.manifest','build.ps1','package.ps1','download-upx.ps1','test-native.ps1','LICENSE','README.md','THIRD_PARTY_NOTICES.md','.gitignore')) {
   Copy-Item -LiteralPath (Join-Path $root $name) -Destination $source -Recurse -Force
  }
  Copy-Item -LiteralPath "$root\tools\UPX-LICENSE", $officialSource -Destination "$source\tools" -Force
  Compress-Archive -Path "$source\*" -DestinationPath "$root\outputs\UpxDrop-$version-source.zip" -Force
-} finally { if (Test-Path -LiteralPath $source) { Remove-Item -LiteralPath $source -Recurse -Force } }
+} finally {
+ $resolvedSource = [IO.Path]::GetFullPath($source)
+ $workRoot = [IO.Path]::GetFullPath((Join-Path $root 'work')) + [IO.Path]::DirectorySeparatorChar
+ if (!$resolvedSource.StartsWith($workRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Source staging path is outside work directory.' }
+ if (Test-Path -LiteralPath $resolvedSource) { Remove-Item -LiteralPath $resolvedSource -Recurse -Force }
+}
 Write-Host "Single-file app: outputs/UpxDrop.exe; publish its checksum and corresponding source archive with each Release."

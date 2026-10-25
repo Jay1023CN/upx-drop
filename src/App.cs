@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+﻿// SPDX-License-Identifier: GPL-2.0-or-later
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,26 +10,19 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
+using System.Windows.Data;
+using System.Windows.Input;
 using Microsoft.Win32;
 namespace UpxDrop {
- public sealed class Entry : INotifyPropertyChanged {
-  public string Path { get; set; }
-  public string Name { get { return System.IO.Path.GetFileName(Path); } }
-  string status = "等待中", before = "—", after = "—", saving = "—";
-  public string Detail = "";
-  public string Status { get { return status; } set { status = value; Changed("Status"); } }
-  public string Before { get { return before; } set { before = value; Changed("Before"); } }
-  public string After { get { return after; } set { after = value; Changed("After"); } }
-  public string Saving { get { return saving; } set { saving = value; Changed("Saving"); } }
-  public event PropertyChangedEventHandler PropertyChanged;
-  void Changed(string name) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name)); }
- }
- public class Program {
+ public partial class Program {
   Window window; ListView files; TextBox details; TextBlock summary, engineLabel;
+  ICollectionView view; TextBox search; ComboBox filter; ProgressBar progress;
+  CancellationTokenSource scanCancellation; bool scanning; int batchDone, batchTotal;
   ComboBox preset, mode, overlay, icons; CheckBox auto, backup, allMethods, exports, relocs, force, autoUpdate; FrameworkElement advanced; Button start, stop, engineButton, downloadButton, updateButton;
-  ObservableCollection<Entry> entries = new ObservableCollection<Entry>();
+  EntryCollection entries = new EntryCollection();
   CancellationTokenSource cancellation, updateCancellation; bool busy, closeRequested, updateChecking; string engine, embeddedEngine; PendingUpdate pendingUpdate;
-  static string SettingFile { get { return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UpxDrop", "settings.txt"); } }
+  readonly string SettingFile;
+  public Program(string settingsPath = null) { SettingFile = settingsPath ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UpxDrop", "settings.txt"); }
   T Find<T>(string name) where T : class { return window.FindName(name) as T; }
   [STAThread] public static void Main(string[] args) {
    var application = new Application(); var program = new Program();
@@ -59,7 +52,39 @@ namespace UpxDrop {
      }
     } } catch (IOException) { } catch (UnauthorizedAccessException) { }
    }
-   UpdateEngine(); files.ItemsSource = entries; files.SelectionChanged += delegate { ShowDetail(); };
+   UpdateEngine(); files.ItemsSource = entries; view = CollectionViewSource.GetDefaultView(entries);
+   search = Find<TextBox>("SearchBox"); filter = Find<ComboBox>("StatusFilter"); progress = Find<ProgressBar>("QueueProgress");
+   view.Filter = item => QueueTools.Matches((Entry)item, search.Text, filter.SelectedIndex);
+   search.TextChanged += delegate { RefreshQueue(); }; filter.SelectionChanged += delegate { RefreshQueue(); };
+   files.SelectionChanged += delegate { ShowDetail(); UpdateActions(); };
+   files.SizeChanged += delegate {
+    var columns = ((GridView)files.View).Columns;
+    columns[0].Width = Math.Max(190, files.ActualWidth - 376);
+   };
+   mode.SelectionChanged += delegate { UpdateMode(); };
+   BindModeSelectors();
+   Find<Button>("FolderButton").Click += delegate {
+    using (var dialog = new System.Windows.Forms.FolderBrowserDialog { Description = "选择要扫描的文件夹", ShowNewFolderButton = false })
+     if (dialog.ShowDialog(new WindowOwner(new System.Windows.Interop.WindowInteropHelper(window).Handle)) == System.Windows.Forms.DialogResult.OK) Add(new[] { dialog.SelectedPath });
+   };
+   Find<Button>("RetryButton").Click += async delegate {
+    if (busy || scanning) return;
+    var retry = entries.Where(e => e.CanRetry).ToList(); foreach (var entry in retry) entry.Retry();
+    filter.SelectedIndex = 0; search.Clear(); RefreshQueue();
+    summary.Text = "已重新加入 " + retry.Count + " 个文件"; await ProcessQueue();
+   };
+   Find<Button>("RemoveButton").Click += delegate { RemoveSelected(); };
+   Find<Button>("ExportButton").Click += delegate { ExportResults(); };
+   Find<Button>("RevealButton").Click += delegate { RevealSelected(); };
+   files.MouseDoubleClick += delegate(object sender, MouseButtonEventArgs e) {
+    if (ItemsControl.ContainerFromElement(files, e.OriginalSource as DependencyObject) is ListViewItem) RevealSelected();
+   };
+   files.PreviewKeyDown += delegate(object sender, KeyEventArgs e) { if (e.Key == Key.Delete) { RemoveSelected(); e.Handled = true; } };
+   window.PreviewKeyDown += delegate(object sender, KeyEventArgs e) {
+    if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control && !scanning) { Find<Button>("AddButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+    if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control) { search.Focus(); search.SelectAll(); e.Handled = true; }
+   };
+   window.Loaded += delegate { AnimateEntrance(); }; InstallMotion(); UpdateMode(); RefreshQueue();
    Find<Button>("AddButton").Click += delegate { var d = new OpenFileDialog { Filter = "Windows 程序 (*.exe;*.dll)|*.exe;*.dll", Multiselect = true }; if (d.ShowDialog(window) == true) Add(d.FileNames); };
    engineButton.Click += delegate { var d = new OpenFileDialog { Filter = "官方 UPX (upx.exe)|upx.exe" }; if (d.ShowDialog(window) == true) { engine = d.FileName; UpdateEngine(); Save(); } };
    downloadButton.Click += delegate {
@@ -69,18 +94,20 @@ namespace UpxDrop {
    Find<Button>("ProjectButton").Click += delegate { OpenProject(); };
    Find<Button>("LicenseButton").Click += delegate { ShowLicenses(); };
    updateButton.Click += async delegate {
-    if (pendingUpdate != null) { if (!busy) window.Close(); else summary.Text = "请等待队列完成后关闭软件，更新将在退出后安装。"; }
+    if (pendingUpdate != null) { if (!busy && !scanning) window.Close(); else summary.Text = "请等待队列完成后关闭软件，更新将在退出后安装。"; }
     else await CheckUpdates(true);
    };
-   start.Click += async delegate { await ProcessQueue(); }; stop.Click += delegate { if (cancellation != null) cancellation.Cancel(); };
-   Find<Button>("ClearButton").Click += delegate { foreach (var entry in entries.Where(e => e.Status != "等待中" && e.Status != "处理中").ToList()) entries.Remove(entry); ShowDetail(); };
-   window.DragOver += delegate(object sender, DragEventArgs e) { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
-   window.Drop += delegate(object sender, DragEventArgs e) { if (e.Data.GetDataPresent(DataFormats.FileDrop)) Add((string[])e.Data.GetData(DataFormats.FileDrop)); e.Handled = true; };
+   start.Click += async delegate { await ProcessQueue(); }; stop.Click += delegate { if (cancellation != null) cancellation.Cancel(); if (scanCancellation != null) scanCancellation.Cancel(); };
+   Find<Button>("ClearButton").Click += delegate { if (busy || scanning) return; foreach (var entry in entries.Where(e => e.Complete).ToList()) entries.Remove(entry); ShowDetail(); RefreshQueue(); };
+   window.PreviewDragOver += delegate(object sender, DragEventArgs e) { e.Effects = !scanning && !closeRequested && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; HighlightDrop(); e.Handled = true; };
+   window.DragLeave += delegate { ResetDrop(); };
+   window.PreviewDrop += delegate(object sender, DragEventArgs e) { if (e.Data.GetDataPresent(DataFormats.FileDrop)) Add((string[])e.Data.GetData(DataFormats.FileDrop)); ResetDrop(); e.Handled = true; };
    window.Closing += delegate(object sender, CancelEventArgs e) {
     Save();
-    if (busy || updateChecking) {
+    if (busy || updateChecking || scanning) {
      e.Cancel = true; closeRequested = true;
      if (cancellation != null) cancellation.Cancel();
+     if (scanCancellation != null) scanCancellation.Cancel();
      if (updateCancellation != null) updateCancellation.Cancel();
      summary.Text = "正在停止并清理临时文件…";
     }
@@ -97,7 +124,7 @@ namespace UpxDrop {
      Find<TextBlock>("UpdateStatus").Text = "新版 " + pendingUpdate.Version + " 已校验，退出后自动更新。";
     } else if (manual) Find<TextBlock>("UpdateStatus").Text = "未发现更新的正式版本。";
    } catch (Exception ex) { if (!closeRequested) { Find<TextBlock>("UpdateStatus").Text = "更新不可用，当前版本可继续使用。"; if (manual) details.Text = ex.Message; } }
-   finally { updateChecking = false; updateCancellation.Dispose(); updateCancellation = null; updateButton.IsEnabled = true; if (closeRequested && !busy) window.Close(); }
+   finally { updateChecking = false; updateCancellation.Dispose(); updateCancellation = null; updateButton.IsEnabled = true; TryClose(); }
   }
   void OpenProject() { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.RepositoryUrl) { UseShellExecute = true }); } catch (Exception ex) { details.Text = Updater.RepositoryUrl + Environment.NewLine + ex.Message; } }
   void ShowLicenses() {
@@ -110,50 +137,104 @@ namespace UpxDrop {
   }
   void UpdateEngine() { engineLabel.Text = File.Exists(engine) ? (engine == embeddedEngine ? "UPX " + EngineDownload.Version : "外部 UPX") + " · 已就绪" : "请选择官方 upx.exe"; engineLabel.ToolTip = engine; }
   void Save() { try { Directory.CreateDirectory(System.IO.Path.GetDirectoryName(SettingFile)); File.WriteAllLines(SettingFile, new[] { engine, preset.SelectedIndex.ToString(), auto.IsChecked.ToString(), backup.IsChecked.ToString(), allMethods.IsChecked.ToString(), exports.IsChecked.ToString(), relocs.IsChecked.ToString(), force.IsChecked.ToString(), overlay.SelectedIndex.ToString(), icons.SelectedIndex.ToString(), autoUpdate.IsChecked.ToString() }); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
-  IEnumerable<string> Expand(string path) {
-   if (File.Exists(path)) { yield return path; yield break; }
-   if (!Directory.Exists(path)) yield break;
-   var pending = new Stack<string>(); pending.Push(path);
-   while (pending.Count > 0) {
-    string dir = pending.Pop(); string[] childFiles, childDirs;
-    try { if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0) continue; childFiles = Directory.GetFiles(dir); childDirs = Directory.GetDirectories(dir); }
-    catch (IOException) { continue; } catch (UnauthorizedAccessException) { continue; }
-    foreach (string item in childFiles) yield return item;
-    foreach (string item in childDirs) pending.Push(item);
+  sealed class WindowOwner : System.Windows.Forms.IWin32Window {
+   public IntPtr Handle { get; private set; }
+   public WindowOwner(IntPtr handle) { Handle = handle; }
+  }
+  void TryClose() { if (closeRequested && !busy && !scanning && !updateChecking) window.Close(); }
+  void UpdateMode() {
+   bool packing = mode.SelectedIndex == 0;
+   preset.IsEnabled = !busy && packing;
+   SyncModePresentation(packing);
+   start.Content = packing ? "开始压缩" : "开始解压";
+  }
+  void UpdateActions() {
+   start.IsEnabled = !busy && !scanning && entries.Any(e => e.Status == "等待中");
+   stop.IsEnabled = busy || scanning;
+   UpdateActivityIndicator();
+   Find<Button>("RetryButton").IsEnabled = !busy && !scanning && entries.Any(e => e.CanRetry);
+   Find<Button>("RemoveButton").IsEnabled = !busy && !scanning && files.SelectedItems.Count > 0;
+   Find<Button>("ClearButton").IsEnabled = !busy && !scanning && entries.Any(e => e.Complete);
+   Find<Button>("ExportButton").IsEnabled = !busy && !scanning && entries.Count > 0;
+   Find<Button>("RevealButton").IsEnabled = files.SelectedItem != null;
+   Find<Button>("AddButton").IsEnabled = Find<Button>("FolderButton").IsEnabled = !scanning && !closeRequested;
+  }
+  void RefreshQueue() {
+   view.Refresh();
+   if (!busy && !scanning && entries.Count == 0) {
+    SetProgress(0); Find<TextBlock>("ProgressText").Text = "等待添加文件";
    }
+   Find<TextBlock>("QueueCount").Text = entries.Count.ToString();
+   Find<TextBlock>("VisibleCount").Text = "显示 " + view.Cast<Entry>().Count() + " / " + entries.Count;
+   Find<TextBlock>("TotalSize").Text = QueueTools.Size(entries.Sum(e => e.BeforeBytes));
+   long saved = entries.Where(e => e.AfterBytes.HasValue).Sum(e => e.BeforeBytes - e.AfterBytes.Value);
+   Find<TextBlock>("SavedLabel").Text = saved < 0 ? "净增加" : "净节省";
+   Find<TextBlock>("SavedSize").Text = QueueTools.Size(Math.Abs(saved));
+   Find<TextBlock>("DoneCount").Text = entries.Count(e => e.Complete).ToString();
+   Find<TextBlock>("EmptyTitle").Text = entries.Count == 0 ? "还没有文件" : "没有匹配的文件";
+   Find<TextBlock>("EmptyHint").Text = entries.Count == 0 ? "拖入 EXE、DLL 或整个文件夹" : "换个关键词，或选择全部状态";
+   long input = entries.Where(e => e.AfterBytes.HasValue).Sum(e => e.BeforeBytes);
+   long output = entries.Where(e => e.AfterBytes.HasValue).Sum(e => e.AfterBytes.Value);
+   UpdateSizeMeters(input, output);
+   UpdateActions();
+  }
+  void RemoveSelected() {
+   if (busy || scanning) return;
+   var selected = files.SelectedItems.Cast<Entry>().ToList(); foreach (var e in selected) entries.Remove(e);
+   ShowDetail(); RefreshQueue(); summary.Text = "已从队列移除 " + selected.Count + " 项，磁盘文件保留。";
+  }
+  void RevealSelected() {
+   var entry = files.SelectedItem as Entry; if (entry == null) return;
+   try {
+    if (!File.Exists(entry.Path)) throw new FileNotFoundException("文件已移动或删除。", entry.Path);
+    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", "/select,\"" + entry.Path + "\"") { UseShellExecute = true });
+   } catch (Exception ex) { summary.Text = "无法定位文件：" + ex.Message; }
+  }
+  void ExportResults() {
+   if (busy || scanning || entries.Count == 0) return;
+   var dialog = new SaveFileDialog { Filter = "CSV 表格 (*.csv)|*.csv", FileName = "UPX处理结果-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".csv" };
+   if (dialog.ShowDialog(window) != true) return;
+   try { File.WriteAllText(dialog.FileName, QueueTools.Csv(entries), new System.Text.UTF8Encoding(true)); summary.Text = "已导出全部 " + entries.Count + " 项结果。"; }
+   catch (Exception ex) { summary.Text = "导出失败：" + ex.Message; }
   }
   async void Add(string[] paths) {
-   if (closeRequested || paths.Length == 0) return; int added = 0;
+   if (closeRequested || scanning || paths.Length == 0) return;
+   scanning = true; scanCancellation = new CancellationTokenSource(); UpdateActions();
+   summary.Text = "正在扫描文件…"; progress.IsIndeterminate = true;
+   int added = 0;
    try {
-    foreach (string raw in paths) foreach (string path in Expand(raw)) {
-     string ext = System.IO.Path.GetExtension(path);
-     if (!(ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) || ext.Equals(".dll", StringComparison.OrdinalIgnoreCase)) || System.IO.Path.GetFileName(path).StartsWith(".upxdrop-")) continue;
-     if (entries.Any(e => string.Equals(e.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
-     if (entries.Count >= 5000) break;
-     var entry = new Entry { Path = System.IO.Path.GetFullPath(path) }; entry.Before = Size(new FileInfo(path).Length); entries.Add(entry); added++;
-    }
-    summary.Text = entries.Count >= 5000 ? "列表已达 5000 个文件，请分批处理。" : added > 0 ? "已加入 " + added + " 个文件" : "没有新的 EXE / DLL 文件";
-    if (auto.IsChecked == true && !busy && added > 0) await ProcessQueue();
-   } catch (Exception ex) { summary.Text = "添加失败：" + ex.Message; }
+    string[] existing = entries.Select(e => e.Path).ToArray(); int capacity = 5000 - entries.Count;
+    var result = await Task.Run(() => QueueTools.Scan(paths, existing, capacity, scanCancellation.Token));
+    scanCancellation.Token.ThrowIfCancellationRequested();
+    entries.AddRange(result.Entries); added = result.Entries.Count;
+    if (busy) { batchTotal += added; SetProgress(batchTotal == 0 ? 0 : batchDone * 100.0 / batchTotal); }
+    else { SetProgress(0); Find<TextBlock>("ProgressText").Text = "等待处理 " + entries.Count(e => e.Status == "等待中") + " 项"; }
+    summary.Text = result.LimitReached ? "列表已达 5000 个文件，请分批处理。" : added > 0 ? "已加入 " + added + " 个文件" : "没有新的 EXE / DLL 文件";
+    if (result.Unreadable > 0) summary.Text += "，另有 " + result.Unreadable + " 项无法读取";
+   } catch (OperationCanceledException) { summary.Text = "已停止扫描。"; }
+   catch (Exception ex) { summary.Text = "添加失败：" + ex.Message; }
+   finally { scanning = false; scanCancellation.Dispose(); scanCancellation = null; progress.IsIndeterminate = false; RefreshQueue(); TryClose(); }
+   if (!closeRequested && auto.IsChecked == true && !busy && added > 0) await ProcessQueue();
   }
-  static string Size(long bytes) { return bytes >= 1048576 ? (bytes / 1048576.0).ToString("0.00") + " MB" : (bytes / 1024.0).ToString("0.0") + " KB"; }
   void ShowDetail() { var entry = files.SelectedItem as Entry; details.Text = entry == null ? "选择一行查看路径和 UPX 运行日志。" : entry.Path + Environment.NewLine + entry.Detail; }
   async Task ProcessQueue() {
-   if (busy || !entries.Any(e => e.Status == "等待中")) return;
+   if (busy || scanning || closeRequested || !entries.Any(e => e.Status == "等待中")) return;
    if (!File.Exists(engine)) { summary.Text = "请先配置官方 UPX 引擎。"; return; }
    advanced.IsEnabled = false;
    busy = true; cancellation = new CancellationTokenSource(); start.IsEnabled = false; stop.IsEnabled = true; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = false;
    bool decompress = mode.SelectedIndex == 1; string level = preset.SelectedIndex == 2 ? "best" : preset.SelectedIndex == 1 ? "fast" : "balanced";
    var options = new PackOptions { Preset = level, Backup = backup.IsChecked == true, AllMethods = allMethods.IsChecked == true, CompressExports = exports.IsChecked == true, StripRelocs = relocs.IsChecked == true, Force = force.IsChecked == true, Overlay = overlay.SelectedIndex == 1 ? "strip" : overlay.SelectedIndex == 2 ? "skip" : "copy", CompressIcons = icons.SelectedIndex };
    int success = 0, failed = 0, skipped = 0; long saved = 0;
+   Find<TextBlock>("ProgressText").Text = "正在准备…";
+   batchDone = 0; batchTotal = entries.Count(e => e.Status == "等待中"); SetProgress(0); UpdateMode(); UpdateActions();
    try {
     while (!cancellation.IsCancellationRequested) {
      Entry entry = entries.FirstOrDefault(e => e.Status == "等待中"); if (entry == null) break;
-     entry.Status = "处理中"; summary.Text = (decompress ? "正在解压：" : "正在压缩：") + entry.Name;
+     entry.AfterBytes = null; entry.Operation = decompress ? "解压" : "压缩"; entry.Refresh(); entry.Status = "处理中"; RefreshQueue(); summary.Text = (decompress ? "正在解压：" : "正在压缩：") + entry.Name;
      try {
       var result = await Task.Run(() => new UpxRunner(engine).ProcessAsync(entry.Path, options, decompress, cancellation.Token));
-      entry.Before = Size(result.Before); entry.After = Size(result.After); entry.Status = result.Status; entry.Detail = result.Detail;
-      entry.Saving = result.Before == 0 ? "—" : ((result.Before - result.After) * 100.0 / result.Before).ToString("0.0") + "%";
+      entry.BeforeBytes = result.Before; entry.AfterBytes = result.After; entry.Status = result.Status; entry.Detail = result.Detail;
+      entry.Refresh();
       if (result.Status == "已跳过") skipped++; else { success++; saved += result.Before - result.After; }
      } catch (OperationCanceledException) { entry.Status = "已取消"; entry.Detail = "本文件已取消，原文件未修改。"; }
      catch (Exception ex) {
@@ -161,14 +242,16 @@ namespace UpxDrop {
       else { entry.Status = "失败"; failed++; }
       entry.Detail = ex.Message;
      }
-     ShowDetail();
+     batchDone++; SetProgress(batchTotal == 0 ? 0 : batchDone * 100.0 / batchTotal);
+     Find<TextBlock>("ProgressText").Text = batchDone + " / " + batchTotal;
+     RefreshQueue(); ShowDetail();
     }
     bool cancelled = cancellation.IsCancellationRequested;
-    if (cancelled) foreach (var entry in entries.Where(e => e.Status == "等待中")) { entry.Status = "已取消"; entry.Detail = "尚未处理，重新添加即可。"; }
-    summary.Text = string.Format("{0} · 成功 {1} / 跳过 {2} / 失败 {3}{4}", cancelled ? "已停止" : "处理完成", success, skipped, failed, saved > 0 ? " · 节省 " + Size(saved) : "");
+    if (cancelled) foreach (var entry in entries.Where(e => e.Status == "等待中")) { entry.Status = "已取消"; entry.Detail = "尚未处理，点击“重试未完成”即可继续。"; }
+    summary.Text = string.Format("{0} · 成功 {1} / 跳过 {2} / 失败 {3}{4}", cancelled ? "已停止" : "处理完成", success, skipped, failed, saved > 0 ? " · 节省 " + QueueTools.Size(saved) : "");
    } finally {
     advanced.IsEnabled = true;
-    busy = false; cancellation.Dispose(); cancellation = null; start.IsEnabled = true; stop.IsEnabled = false; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = true; Save(); if (closeRequested) window.Close();
+    busy = false; cancellation.Dispose(); cancellation = null; start.IsEnabled = true; stop.IsEnabled = false; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = true; UpdateMode(); RefreshQueue(); Save(); TryClose();
    }
   }
  }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+﻿// SPDX-License-Identifier: GPL-2.0-or-later
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ namespace UpxDrop {
  public sealed class ReleaseAsset { public string Version, Url, ChecksumUrl, Digest; public long Size; }
  public static class Updater {
   public const string RepositoryUrl = "https://github.com/Jay1023CN/upx-drop";
-  public const string CurrentVersion = "1.1.0";
+  public const string CurrentVersion = "1.2.0";
   const string AssetName = "UpxDrop.exe";
   sealed class Client : WebClient {
    public Client() { Headers["User-Agent"] = "UpxDrop/" + CurrentVersion; Headers["Accept"] = "application/vnd.github+json"; }

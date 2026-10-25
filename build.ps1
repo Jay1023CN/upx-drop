@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-2.0-or-later
+﻿# SPDX-License-Identifier: GPL-2.0-or-later
 param([switch]$Test)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -10,11 +10,15 @@ if (!(Test-Path -LiteralPath $archive)) { & "$root\download-upx.ps1" }
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'eabc6792a347d45e945be7748423e7868fd01b0d2bcaa2f4b1031fd71ff69bda') { throw 'Embedded UPX archive SHA-256 mismatch.' }
 $output = Join-Path $root 'dist\UpxDrop'
 New-Item -ItemType Directory -Force -Path $output, "$root\work" | Out-Null
-$references = @('System.dll','System.Core.dll','System.Xml.dll','System.Xaml.dll','System.Web.Extensions.dll','System.IO.Compression.dll','System.IO.Compression.FileSystem.dll','WPF\WindowsBase.dll','WPF\PresentationCore.dll','WPF\PresentationFramework.dll') | ForEach-Object { '/reference:' + (Join-Path $framework $_) }
+$references = @('System.dll','System.Windows.Forms.dll','System.Drawing.dll','System.Core.dll','System.Xml.dll','System.Xaml.dll','System.Web.Extensions.dll','System.IO.Compression.dll','System.IO.Compression.FileSystem.dll','WPF\WindowsBase.dll','WPF\PresentationCore.dll','WPF\PresentationFramework.dll') | ForEach-Object { '/reference:' + (Join-Path $framework $_) }
 $resources = @("/resource:$root\src\MainWindow.xaml,MainWindow.xaml", "/resource:$archive,upx.zip", "/resource:$root\LICENSE,LICENSE", "/resource:$root\THIRD_PARTY_NOTICES.md,THIRD_PARTY_NOTICES.md", "/resource:$root\tools\UPX-LICENSE,UPX-LICENSE")
-& $compiler /nologo /target:winexe /platform:anycpu /optimize+ /utf8output /codepage:65001 "/out:$output\UpxDrop.exe" "/win32manifest:$root\app.manifest" @resources @references "$root\src\App.cs" "$root\src\Core.cs" "$root\src\EngineDownload.cs" "$root\src\Updater.cs" "$root\src\AssemblyInfo.cs"
+& $compiler /nologo /target:winexe /platform:anycpu /optimize+ /utf8output /codepage:65001 "/out:$output\UpxDrop.exe" "/win32manifest:$root\app.manifest" @resources @references "$root\src\Queue.cs" "$root\src\App.cs" "$root\src\Appearance.cs" "$root\src\Core.cs" "$root\src\EngineDownload.cs" "$root\src\Updater.cs" "$root\src\AssemblyInfo.cs"
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 if ($Test) {
+ & $compiler /nologo /target:exe /utf8output /codepage:65001 "/out:$root\work\QueueTests.exe" "$root\src\Queue.cs" "$root\tests\QueueTests.cs"
+ if ($LASTEXITCODE -ne 0) { throw 'Queue test compilation failed.' }
+ & "$root\work\QueueTests.exe"
+ if ($LASTEXITCODE -ne 0) { throw 'Queue tests failed.' }
  & $compiler /nologo /target:exe /utf8output /codepage:65001 "/out:$root\work\CoreTests.exe" "$root\src\Core.cs" "$root\tests\CoreTests.cs"
  if ($LASTEXITCODE -ne 0) { throw 'Core test compilation failed.' }
  & "$root\work\CoreTests.exe"
@@ -35,6 +39,10 @@ if ($Test) {
  if ($LASTEXITCODE -ne 0) { throw 'Windows update test compilation failed.' }
  & "$root\work\WindowsUpdateTests.exe" "$root\work\UpdateFixture.exe" "$root\work\UpdatedFixture.exe"
  if ($LASTEXITCODE -ne 0) { throw 'Windows update replacement/rollback tests failed.' }
+ & $compiler /nologo /target:exe /main:UiFlowTests /utf8output /codepage:65001 "/out:$root\work\UiFlowTests.exe" @resources @references "$root\src\App.cs" "$root\src\Appearance.cs" "$root\src\Queue.cs" "$root\src\Core.cs" "$root\src\EngineDownload.cs" "$root\src\Updater.cs" "$root\tests\UiFlowTests.cs"
+ if ($LASTEXITCODE -ne 0) { throw 'UI flow test compilation failed.' }
+ & "$root\work\UiFlowTests.exe" "$root\work\CoreTests.exe"
+ if ($LASTEXITCODE -ne 0) { throw 'UI flow tests failed.' }
  & $compiler /nologo /target:exe /utf8output /codepage:65001 "/out:$root\work\UiSmoke.exe" @references "$root\tests\UiSmoke.cs"
  if ($LASTEXITCODE -ne 0) { throw 'UI smoke compilation failed.' }
  & "$root\work\UiSmoke.exe" "$root\src\MainWindow.xaml" "$root\work\preview.png" "$output\UpxDrop.exe"
