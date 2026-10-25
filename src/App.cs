@@ -11,6 +11,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using Microsoft.Win32;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 namespace UpxDrop {
  public sealed class Entry : INotifyPropertyChanged {
   public string Path { get; set; }
@@ -25,6 +27,13 @@ namespace UpxDrop {
   void Changed(string name) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name)); }
  }
  public class Program {
+  [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr handle, int attribute, ref int value, int size);
+  static void UseDarkTitleBar(Window target) {
+   try {
+    int enabled = 1; IntPtr handle = new WindowInteropHelper(target).Handle;
+    if (DwmSetWindowAttribute(handle, 20, ref enabled, sizeof(int)) != 0) DwmSetWindowAttribute(handle, 19, ref enabled, sizeof(int));
+   } catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { }
+  }
   Window window; ListView files; TextBox details; TextBlock summary, engineLabel;
   ComboBox preset, mode, overlay, icons; CheckBox auto, backup, allMethods, exports, relocs, force, autoUpdate; FrameworkElement advanced; Button start, stop, engineButton, downloadButton, updateButton, retry; ProgressBar queueProgress; TextBlock queueProgressText;
   ObservableCollection<Entry> entries = new ObservableCollection<Entry>();
@@ -38,6 +47,7 @@ namespace UpxDrop {
   }
   void Initialize() {
    using (var stream = typeof(Program).Assembly.GetManifestResourceStream("MainWindow.xaml")) window = (Window)XamlReader.Load(stream);
+   window.SourceInitialized += delegate { UseDarkTitleBar(window); };
    files = Find<ListView>("Files"); details = Find<TextBox>("Details"); summary = Find<TextBlock>("Summary"); engineLabel = Find<TextBlock>("EngineLabel");
    preset = Find<ComboBox>("Preset"); mode = Find<ComboBox>("Mode"); auto = Find<CheckBox>("AutoStart");
    start = Find<Button>("StartButton"); stop = Find<Button>("StopButton"); engineButton = Find<Button>("EngineButton"); downloadButton = Find<Button>("DownloadButton");

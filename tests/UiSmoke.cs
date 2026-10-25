@@ -16,9 +16,12 @@ class UiSmoke {
    var content=(System.Windows.Controls.Grid)window.Content;
    window.Content=null;
    var surface=new System.Windows.Controls.Border { Background=window.Background,Child=content };
+   window.Content=surface;
    foreach(int width in new[]{1140,1000}) {
     int height=width==1140 ? 780 : 700;
     surface.Measure(new Size(width,height)); surface.Arrange(new Rect(0,0,width,height)); surface.UpdateLayout();
+    var themedCombo=(System.Windows.Controls.ComboBox)window.FindName("Preset");
+    if(((SolidColorBrush)themedCombo.Background).Color!=Color.FromRgb(0x20,0x26,0x2f)) throw new Exception("Dark dropdown style was not applied.");
     foreach(string name in new[]{"Files","StartButton","ProjectButton","UpdateButton","UpdateStatus","RetryButton","QueueProgressText"}) {
      var element=(FrameworkElement)window.FindName(name);
      Rect bounds=element.TransformToAncestor(surface).TransformBounds(new Rect(element.RenderSize));
@@ -33,6 +36,10 @@ class UiSmoke {
    list.Items.Add(new { Name="my-tool.exe",Status="已压缩",Before="2.4 MB",After="980 KB",Saving="60.1%" });
    list.Items.Add(new { Name="library.dll",Status="等待中",Before="780 KB",After="—",Saving="—" });
    list.Items.Add(new { Name="signed-app.exe",Status="已跳过",Before="1.2 MB",After="1.2 MB",Saving="0.0%" });
+   ((System.Windows.Controls.ProgressBar)window.FindName("QueueProgress")).Maximum=3;
+   ((System.Windows.Controls.ProgressBar)window.FindName("QueueProgress")).Value=2;
+   ((System.Windows.Controls.TextBlock)window.FindName("QueueProgressText")).Text="2/3";
+   ((System.Windows.Controls.Button)window.FindName("StartButton")).IsEnabled=true;
    surface.Measure(new Size(1140,780)); surface.Arrange(new Rect(0,0,1140,780)); surface.UpdateLayout();
    var populated=new RenderTargetBitmap(1140,780,96,96,PixelFormats.Pbgra32); populated.Render(surface);
    var populatedEncoder=new PngBitmapEncoder(); populatedEncoder.Frames.Add(BitmapFrame.Create(populated));
