@@ -1,0 +1,22 @@
+name: Windows build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test
+        shell: powershell
+        run: .\build.ps1 -Test
+      - name: Package lightweight release and matching source
+        shell: powershell
+        run: .\package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UpxDrop-1.0.0
+          path: outputs/UpxDrop-1.0.0.zip

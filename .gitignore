@@ -1,0 +1,9 @@
+dist/
+outputs/
+work/
+tools/upx.exe
+tools/upx-*-src.tar.xz
+tools/upx-*-win64.zip
+*.user
+*.suo
+.vs/
