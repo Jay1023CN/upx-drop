@@ -4,11 +4,14 @@ $root = $PSScriptRoot
 & "$root\build.ps1"
 $version = [Diagnostics.FileVersionInfo]::GetVersionInfo("$root\dist\UpxDrop\UpxDrop.exe").FileVersion
 $version = ([Version]$version).ToString(3)
+$releaseNotes = Join-Path $root ("docs\RELEASE-$version.md")
+if (!(Test-Path -LiteralPath $releaseNotes)) { throw "Missing release notes: $releaseNotes" }
 $officialSource = "$root\tools\upx-5.2.1-src.tar.xz"
 if (!(Test-Path -LiteralPath $officialSource)) { & "$root\download-upx.ps1" }
 if ((Get-FileHash -LiteralPath $officialSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'a7d457be4ef942e46844ee8f301206b111394cbcbde3599747a6904c54ff116b') { throw 'UPX source archive SHA-256 mismatch.' }
 New-Item -ItemType Directory -Force "$root\outputs" | Out-Null
 Copy-Item -LiteralPath "$root\dist\UpxDrop\UpxDrop.exe" -Destination "$root\outputs\UpxDrop.exe" -Force
+Copy-Item -LiteralPath $releaseNotes -Destination "$root\outputs\RELEASE_NOTES.md" -Force
 $hash = (Get-FileHash -LiteralPath "$root\outputs\UpxDrop.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText("$root\outputs\UpxDrop.exe.sha256", "$hash  UpxDrop.exe`n", [Text.Encoding]::ASCII)
 $source = Join-Path $root ('work\source-' + [guid]::NewGuid().ToString('N'))

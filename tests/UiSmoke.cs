@@ -1,13 +1,32 @@
-﻿// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: GPL-2.0-or-later
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 class UiSmoke {
+ [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+ [DllImport("user32.dll")] static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+ [DllImport("user32.dll")] static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+ delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+ static IntPtr FindWindowForProcess(int pid, string title) {
+  IntPtr result = IntPtr.Zero;
+  EnumWindows((hWnd, lParam) => {
+   uint procId; GetWindowThreadProcessId(hWnd, out procId);
+   if (procId == pid) {
+    var sb = new StringBuilder(256); GetWindowText(hWnd, sb, 256);
+    if (sb.ToString() == title) { result = hWnd; return false; }
+   }
+   return true;
+  }, IntPtr.Zero);
+  return result;
+ }
  [STAThread] static int Main(string[] args) {
   try {
    var app=new Application(); Window window;
@@ -34,17 +53,28 @@ class UiSmoke {
      string exe=Path.Combine(root,"UpxDrop.exe"); File.Copy(args[2],exe);
      using(var process=Process.Start(new ProcessStartInfo(exe,"--no-update-check") { UseShellExecute=false, WorkingDirectory=root })) {
       try {
-       var watch=Stopwatch.StartNew(); bool ready=false;
+       var watch=Stopwatch.StartNew(); IntPtr targetWnd = IntPtr.Zero;
        while(watch.Elapsed.TotalSeconds<20 && !process.HasExited) {
-        process.Refresh(); if(process.MainWindowHandle!=IntPtr.Zero && process.MainWindowTitle=="UPX Drop") { ready=true; break; }
+        process.Refresh();
+        targetWnd = FindWindowForProcess(process.Id, "UPX Drop");
+        if(targetWnd != IntPtr.Zero) break;
+        if(process.MainWindowHandle!=IntPtr.Zero && process.MainWindowTitle=="UPX Drop") { targetWnd = process.MainWindowHandle; break; }
         Thread.Sleep(100);
        }
-       if(!ready) throw new Exception("Single-file application did not open its main window.");
+       if(targetWnd == IntPtr.Zero) throw new Exception("Single-file application did not open its main window.");
        Console.WriteLine("PASS application starts offline from a directory containing only UpxDrop.exe");
-       process.CloseMainWindow(); if(!process.WaitForExit(5000)) throw new Exception("Application did not close cleanly.");
+       PostMessage(targetWnd, 0x0010, IntPtr.Zero, IntPtr.Zero);
+       process.CloseMainWindow();
+       if(!process.WaitForExit(5000)) throw new Exception("Application did not close cleanly.");
       } finally { if(!process.HasExited) { process.Kill(); process.WaitForExit(); } }
      }
-    } finally { Directory.Delete(root,true); }
+    } finally {
+     for (int i = 0; i < 10; i++) {
+      try { Directory.Delete(root, true); break; }
+      catch(IOException) { if (i == 9) throw; Thread.Sleep(200); }
+      catch(UnauthorizedAccessException) { if (i == 9) throw; Thread.Sleep(200); }
+     }
+    }
    }
    return 0;
   } catch(Exception ex) { Console.Error.WriteLine(ex); return 1; }

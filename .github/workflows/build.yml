@@ -38,6 +38,7 @@ jobs:
           path: |
             outputs/UpxDrop.exe
             outputs/UpxDrop.exe.sha256
+            outputs/RELEASE_NOTES.md
             outputs/*-source.zip
             work/preview*.png
           if-no-files-found: error
@@ -54,7 +55,8 @@ jobs:
           path: release-files
       - uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          name: UPX Drop ${{ github.ref_name }}
+          body_path: release-files/outputs/RELEASE_NOTES.md
           files: |
             release-files/outputs/UpxDrop.exe
             release-files/outputs/UpxDrop.exe.sha256

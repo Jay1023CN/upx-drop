@@ -49,6 +49,14 @@ class WindowsUpdateTests {
    Failure(Path.Combine(root,"rollback"),args[0]);
    Console.WriteLine(passed+" Windows update checks passed"); return 0;
   } catch(Exception ex) { Console.Error.WriteLine(ex); return 1; }
-  finally { if(Directory.Exists(root)) Directory.Delete(root,true); }
+  finally {
+   if(Directory.Exists(root)) {
+    for(int i=0;i<10;i++) {
+     try { Directory.Delete(root,true); break; }
+     catch(IOException) { if(i==9) throw; Thread.Sleep(200); }
+     catch(UnauthorizedAccessException) { if(i==9) throw; Thread.Sleep(200); }
+    }
+   }
+  }
  }
 }

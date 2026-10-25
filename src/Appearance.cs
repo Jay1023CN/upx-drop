@@ -9,6 +9,7 @@ namespace UpxDrop {
  public partial class Program {
   T Optional<T>(string name) where T : class { return window.FindName(name) as T; }
   void BindModeSelectors() {
+   SetText("AppVersion", "v" + Updater.CurrentVersion);
    BindSelector("PackMode", mode, 0); BindSelector("UnpackMode", mode, 1);
    BindSelector("BalancedPreset", preset, 0); BindSelector("FastPreset", preset, 1); BindSelector("BestPreset", preset, 2);
    preset.SelectionChanged += delegate { UpdateMode(); };
@@ -29,7 +30,7 @@ namespace UpxDrop {
   }
   void UpdateActivityIndicator() {
    var indicator = Optional<System.Windows.Shapes.Ellipse>("RunIndicator");
-   if (indicator != null) indicator.Fill = new SolidColorBrush(busy || scanning ? Color.FromRgb(216, 76, 32) : Color.FromRgb(124, 151, 134));
+   if (indicator != null) indicator.Fill = new SolidColorBrush(busy || scanning ? Color.FromRgb(37, 99, 235) : Color.FromRgb(16, 185, 129));
   }
   void UpdateSizeMeters(long input, long output) {
    SetText("MeterBefore", QueueTools.Size(input)); SetText("MeterAfter", input == 0 ? "—" : QueueTools.Size(output));
@@ -41,7 +42,7 @@ namespace UpxDrop {
   void HighlightDrop() {
    var border = Optional<Border>("DropSurface"); if (border == null) return;
    if (normalDropBorder == null) normalDropBorder = border.BorderBrush;
-   border.BorderBrush = new SolidColorBrush(Color.FromRgb(216, 76, 32));
+   border.BorderBrush = new SolidColorBrush(Color.FromRgb(37, 99, 235));
   }
   void ResetDrop() { var border = Optional<Border>("DropSurface"); if (border != null && normalDropBorder != null) border.BorderBrush = normalDropBorder; }
   void AnimateEntrance() {
@@ -83,9 +84,9 @@ namespace UpxDrop {
   }
   void UpdateMeter(string name, double ratio, bool orange) {
    var meter = Optional<System.Windows.Controls.Primitives.UniformGrid>(name); if (meter == null) return;
-   if (meter.Children.Count == 0) for (int i = 0; i < 24; i++) meter.Children.Add(new Border { Margin = new Thickness(0, 0, 2, 0), CornerRadius = new CornerRadius(1) });
+   if (meter.Children.Count == 0) for (int i = 0; i < 24; i++) meter.Children.Add(new Border { Margin = new Thickness(0, 0, 2, 0), CornerRadius = new CornerRadius(2) });
    for (int i = 0; i < 24; i++) {
-    var bar = (Border)meter.Children[i]; Color color = i < Math.Ceiling(ratio * 24) ? (orange ? Color.FromRgb(216, 76, 32) : Color.FromRgb(71, 98, 79)) : Color.FromRgb(189, 204, 193);
+    var bar = (Border)meter.Children[i]; Color color = i < Math.Ceiling(ratio * 24) ? (orange ? Color.FromRgb(16, 185, 129) : Color.FromRgb(37, 99, 235)) : Color.FromRgb(226, 232, 240);
     var brush = bar.Background as SolidColorBrush;
     if (brush == null) bar.Background = new SolidColorBrush(color);
     else if (SystemParameters.ClientAreaAnimation) brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(color, TimeSpan.FromMilliseconds(180)));

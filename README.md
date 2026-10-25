@@ -1,36 +1,64 @@
+<div align="center">
+
 # UPX Drop
 
-Windows EXE / DLL 拖放压缩工具，使用 C#、WPF 和未修改的官方 UPX 5.2.1。
+**Windows EXE / DLL 批量压缩与解压**
 
-> 当前主分支正在准备 1.2.0：队列功能已更新，新 UI 合并后再发布 Release。
+一个 EXE，拖入文件就能用。内嵌官方 UPX 5.2.1。
 
-## 下载与使用
+[**下载 Windows 版**](https://github.com/Jay1023CN/upx-drop/releases/latest/download/UpxDrop.exe)　·　[版本记录](https://github.com/Jay1023CN/upx-drop/releases)　·　[反馈问题](https://github.com/Jay1023CN/upx-drop/issues)
 
-从 [GitHub Releases](https://github.com/Jay1023CN/upx-drop/releases) 下载 **UpxDrop.exe** 即可。分发和使用时只需要这一个 EXE，无需附带 DLL、配置文件或 UPX 工具文件。需要 Windows 10 / 11 和 .NET Framework 4.8；较旧的 Windows 10 若未安装 4.8，需先通过微软安装。
+[![Windows 构建](https://github.com/Jay1023CN/upx-drop/actions/workflows/build.yml/badge.svg)](https://github.com/Jay1023CN/upx-drop/actions/workflows/build.yml)
 
-官方 UPX 压缩包、界面和许可文本均嵌入 EXE。首次运行会校验 SHA-256，将 `upx.exe` 自动释放到 `%LOCALAPPDATA%\UpxDrop\engine`，之后可以离线处理文件。这是单文件分发，运行时仍会产生缓存和用户设置，不是在内存中执行 UPX。
+</div>
 
-拖入 EXE、DLL 或文件夹，自动排队压缩；也可关闭“添加后自动开始”，手动开始。默认均衡压缩 `-7`，支持 `-1`、`--best` 和解压 `-d`。文件夹在后台递归扫描，跳过文件与目录链接，同一文件只加入一次；队列最多 5000 个文件。扫描时可点击“停止”。
+![UPX Drop 主界面](docs/images/workspace.png)
+
+<p align="center"><sub>1.2.0 界面 · 图中为官方 UPX 处理原生测试程序的实际结果，压缩率取决于文件本身。</sub></p>
+
+---
+
+| 批量处理 | 队列管理 | 结果可查 |
+| :--- | :--- | :--- |
+| 文件、文件夹拖放；后台扫描子目录 | 搜索筛选、失败重试、多选移除 | 前后体积、处理日志、CSV 导出 |
+| 三档压缩，也可解压还原 | 处理中继续追加，随时停止 | 可选原文件备份，全程本地处理 |
+
+## 开始使用
+
+1. 下载 [UpxDrop.exe](https://github.com/Jay1023CN/upx-drop/releases/latest/download/UpxDrop.exe)，直接运行。
+2. 选择压缩或解压，按需开启“保留原文件备份”。
+3. 拖入 EXE、DLL 或文件夹。默认自动开始，也可以关闭自动开始后手动处理。
+
+适用于 **Windows 10 / 11 x64**，需要 **.NET Framework 4.8**。无需安装包，也无需在 EXE 旁附带 DLL、配置或 UPX 文件。首次启动会校验并释放内嵌引擎，之后可离线处理文件。
+
+| 快捷键 | 操作 |
+| --- | --- |
+| `Ctrl+O` | 添加文件 |
+| `Ctrl+F` | 搜索文件名或路径 |
+| `Delete` | 移除选中项，磁盘文件保留 |
+| 双击文件行 | 在资源管理器中定位 |
 
 ## 队列操作
 
-| 操作 | 行为 |
+| 功能 | 行为 |
 | --- | --- |
-| 添加文件 / 选择文件夹 | 多文件添加，递归扫描子目录；也支持拖放。处理中可继续追加文件。 |
-| 搜索与筛选 | 按文件名、完整路径搜索；按等待、完成、失败或取消筛选。筛选只改变显示，不改变待处理队列。 |
-| 重试未完成 | 重新处理失败和已取消的文件，不重复处理已成功的文件；使用当前设置。 |
+| 后台扫描 | 递归扫描文件夹，跳过文件与目录链接，自动去重。队列最多 5000 个文件；扫描可取消。 |
+| 搜索与筛选 | 按文件名、完整路径或状态筛选。筛选只改变显示，不影响整个待处理队列。 |
+| 重试未完成 | 重新处理失败和已取消的文件，使用当前设置，不重复处理已成功文件。 |
 | 移除选中 | 支持多选，只移出队列，不删除磁盘文件。 |
 | 清理已完成 | 清理已压缩、已解压和已跳过的记录，保留失败及取消项。 |
-| 导出 CSV | 导出整个队列的路径、操作、状态、前后字节数、变化比例和日志，含被筛选隐藏的记录。 |
-| 文件详情 | 查看完整路径、UPX 日志；双击文件行可在资源管理器中定位。 |
+| 导出 CSV | 导出整个队列，包括隐藏项的路径、操作、状态、前后字节数、变化比例和日志。 |
 
-处理进度按文件数计算。总计、净节省和已完成数量按整个队列统计，不随搜索筛选改变。解压后体积增加时显示“净增加”。CSV 使用带 BOM 的 UTF-8 编码，Excel 可直接打开中文内容。
+进度按文件数计算；体积与完成数量按整个队列统计。解压后体积增大时显示“净增加”。CSV 使用带 BOM 的 UTF-8 编码，可直接用 Excel 打开中文内容。
 
-快捷键：`Ctrl+O` 添加文件，`Ctrl+F` 搜索，`Delete` 移除选中项。
+## 压缩与原文件保护
 
-## 压缩选项
+默认使用均衡压缩 `-7`，还可选快速 `-1`、极致 `--best` 和解压 `-d`。
 
-可配置：
+每个文件先在同目录创建临时副本，完成 UPX 压缩及 `upx -t` 校验后，再核对原文件是否变化，最后原子替换。失败或取消保留原文件；已完成项不随取消回滚。带数字签名的文件自动跳过，压缩后没有变小也保留原文件。
+
+<details>
+<summary><b>高级选项与备份说明</b></summary>
 
 - 创建备份：默认关闭；开启后，成功替换时，在原文件旁生成独立命名的 `.upxdrop-<随机值>.bak`，不覆盖历史备份。需要还原时，关闭占用文件的程序，将备份复制回原文件名。
 - 尝试全部压缩方法：`--all-methods`，耗时较长。
@@ -41,13 +69,29 @@ Windows EXE / DLL 拖放压缩工具，使用 C#、WPF 和未修改的官方 UPX
 
 不修改 UPX 标志，以保持官方格式、校验和解压能力；不提供旧版 UPX 切换。压缩流程为：同目录临时副本 → UPX → `upx -t` → 核对原文件未变化 → 原子替换。失败或取消保留原文件；已完成的文件不随取消回滚。UPX 校验不能代替原程序的功能测试。
 
-## 自动更新
+
+</details>
+
+<details>
+<summary><b>自动更新与运行目录</b></summary>
 
 默认启动时通过 GitHub API 检查本仓库最新正式 Release。只接受更高的 `v主.次.修订` 版本、名为 `UpxDrop.exe` 的附件和对应 SHA-256；忽略草稿、预发布版和旧版本。优先使用 GitHub 提供的附件 digest，否则使用同一 Release 的 `UpxDrop.exe.sha256`。没有 Release、离线或校验失败均不会替换当前程序。
 
 下载并校验完成后，底部显示版本，按钮变为“退出并更新”。正常退出后，由 Windows PowerShell 等待主进程结束，重新验证并原子替换 EXE，然后重启。安装目录必须对当前用户可写，不请求管理员权限。安装异常会尝试恢复旧版，并记录到 `%LOCALAPPDATA%\UpxDrop\updates\last-update.log`。GitHub 仓库和 Release 发布权限是更新的信任来源；SHA-256 不是独立的代码签名。
 
 可关闭“自动更新”，或使用 `UpxDrop.exe --no-update-check` 本次离线启动。更新状态不会覆盖压缩队列日志。运行时联网只用于检查/下载版本；不会上传待处理文件。
+
+
+引擎缓存位于 `%LOCALAPPDATA%\UpxDrop\engine`，用户设置和更新缓存也位于 `%LOCALAPPDATA%\UpxDrop`。单文件分发不代表运行时不产生缓存。
+
+</details>
+
+<details>
+<summary><b>展开高级设置界面</b></summary>
+
+![高级压缩选项](docs/images/workspace-advanced.png)
+
+</details>
 
 ## Windows 构建、测试和发布
 

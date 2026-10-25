@@ -57,6 +57,12 @@ class UiFlowTests {
    var e = Control<FrameworkElement>(p, name); var bounds = e.TransformToAncestor(host).TransformBounds(new Rect(e.RenderSize));
    Check(bounds.Left >= 0 && bounds.Top >= 0 && bounds.Right <= width && bounds.Bottom <= height, "layout contains " + name + " at " + width);
   }
+  var drop = Control<Border>(p, "DropSurface");
+  foreach (var name in new[] { "AddButton", "FolderButton" }) {
+   var button = Control<Button>(p, name);
+   var bounds = button.TransformToAncestor(drop).TransformBounds(new Rect(button.RenderSize));
+   Check(bounds.Top >= 0 && bounds.Bottom <= drop.ActualHeight, name + " stays inside the drop area at " + width);
+  }
   var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(host);
   var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
   using (var output = File.Create(path)) encoder.Save(output);
