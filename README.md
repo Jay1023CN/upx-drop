@@ -16,7 +16,7 @@
 
 ![UPX Drop 主界面](docs/images/workspace.png)
 
-<p align="center"><sub>1.3.0 界面 · 图中为官方 UPX 处理原生测试程序的实际结果，压缩率取决于文件本身。</sub></p>
+<p align="center"><sub>1.3.1 界面 · 图中为官方 UPX 处理原生测试程序的实际结果，压缩率取决于文件本身。</sub></p>
 
 ---
 
@@ -55,7 +55,7 @@ UPX Drop 用来缩小 Windows EXE 和 DLL 文件的体积，把 UPX 命令行做
 
 ## 新手教程与界面
 
-第一次使用，可以点击底部的“新手教程”，或空队列中的“第一次用？跟着做一次”。每页完成一个小操作，演示数据与真实文件队列分开；关闭或按 `Esc` 返回工作区。
+第一次使用，可以点击底部的“新手教程”，或空队列中的“用示例练习”。每页完成一个小操作，演示数据与真实文件队列分开；关闭或按 `Esc` 返回工作区。
 
 ![三步上手演练](docs/images/tutorial.png)
 
@@ -131,7 +131,7 @@ powershell -ExecutionPolicy Bypass -File .\package.ps1
 
 - `outputs/UpxDrop.exe`：唯一需要分发给最终用户的程序。
 - `outputs/UpxDrop.exe.sha256`：自动更新校验附件。
-- `outputs/UpxDrop-1.3.0-source.zip`：应用完整源码、构建脚本和 UPX 对应完整源码归档；与 EXE 在同一 Release 发布，运行程序不依赖它。
+- `outputs/UpxDrop-1.3.1-source.zip`：应用完整源码、构建脚本和 UPX 对应完整源码归档；与 EXE 在同一 Release 发布，运行程序不依赖它。
 
 现有核心测试使用本地 fixture 子进程，覆盖备份、取消、原文件保护、签名检测和选项传递，不等同于真实 UPX 对所有软件的兼容性验证。另有更新元数据/完整性测试、内嵌引擎释放与缓存修复测试、两种窗口大小的 XAML 渲染检查，以及隔离目录只放一个 EXE 的离线启动检查。Windows 更新测试使用独立的旧/新 EXE fixture，验证退出后替换与重启、含中文/空格/单引号的路径，以及新 EXE 无法启动时还原旧程序。压缩文件备份默认关闭；自更新回滚仅在更新安装期间临时保留旧程序，两者相互独立。
 

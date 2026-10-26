@@ -52,21 +52,24 @@ namespace UpxDrop {
   void ShowTutorialPage() {
    tutorialGeneration++; tutorialReady = tutorialStep == 2;
    SetText("TutorialStepLabel", (tutorialStep + 1) + " / 3");
-   SetText("TutorialTitle", new[] { "先放进一个文件", "选好强度，再压缩", "结果，直接看得见" }[tutorialStep]);
+   SetText("TutorialTitle", new[] { "添加文件", "选择压缩强度", "查看处理结果" }[tutorialStep]);
    SetText("TutorialBody", new[] {
-    "把 EXE、DLL 或文件夹拖进窗口，也可以用“添加文件”选择。先在左边试着加入一个示例。",
-    "日常使用选“均衡”就够了。你可以切换强度，观察示例的体积变化。真实文件开启“添加后自动开始”时，会立即处理。",
-    "队列会列出处理前后的体积和状态。失败的文件可以单独重试；需要整理结果时，可以导出 CSV。"
+    "先点“添加示例”试一次。正式使用时，把 EXE、DLL 或文件夹拖进窗口，也可以点“添加文件”。",
+    "选好强度，点“压缩示例”。平时用“均衡”就行，想快一点可以选“快速”。",
+    "这里能看到文件状态和前后大小。处理失败就点“重试未完成”，要保存结果就导出 CSV。"
    }[tutorialStep]);
-   SetText("TutorialNote", tutorialStep == 2 ? "正式处理时可开启“保留原文件备份”。带数字签名的文件会自动跳过；压缩校验通过后，发布前再运行程序确认功能。" : "这里用的是演示数据，不会读取或修改你的文件，也不会改变正式队列的设置。");
-   SetText("TutorialFileStatus", tutorialStep == 0 ? "示例文件 · 8.0 MB" : tutorialStep == 1 ? "已加入 · 等待压缩" : "8.0 MB → " + tutorialSizes[tutorialPreset]);
-   SetText("TutorialStageHint", tutorialStep == 0 ? "点一下，把示例放进队列。" : tutorialStep == 1 ? "当前强度：" + new[] { "快速", "均衡", "极致" }[tutorialPreset] : "已压缩 · 这就是队列里的完成状态。演示体积不代表实际压缩率。");
+   SetText("TutorialNote", new[] {
+    "教程用的是示例，不会动你的文件。",
+    "“添加后自动开始”打开时，加入文件就会开始处理。",
+    "想留下原文件，处理前勾选“保留原文件备份”。"
+   }[tutorialStep]);
+   SetText("TutorialFileStatus", tutorialStep == 0 ? "示例文件 · 8.0 MB" : tutorialStep == 1 ? "已加入 · 等待压缩" : "已压缩 · 8.0 MB → " + tutorialSizes[tutorialPreset]);
    Find<StackPanel>("TutorialPresets").Visibility = tutorialStep == 1 ? Visibility.Visible : Visibility.Collapsed;
    Find<Button>("TutorialAction").Visibility = tutorialStep == 2 ? Visibility.Hidden : Visibility.Visible;
-   Find<Button>("TutorialAction").Content = tutorialStep == 0 ? "放入示例文件" : "试一下压缩";
+   Find<Button>("TutorialAction").Content = tutorialStep == 0 ? "添加示例" : "压缩示例";
    Find<Button>("TutorialAction").IsEnabled = true;
    Find<Button>("TutorialBack").IsEnabled = tutorialStep > 0;
-   Find<Button>("TutorialNext").Content = tutorialStep == 2 ? "开始使用" : "继续";
+   Find<Button>("TutorialNext").Content = tutorialStep == 2 ? "开始使用" : "下一步";
    Find<Button>("TutorialNext").IsEnabled = tutorialReady;
    string[] names = { "TutorialFast", "TutorialBalanced", "TutorialBest" };
    for (int i = 0; i < names.Length; i++) {
@@ -90,7 +93,6 @@ namespace UpxDrop {
    if (tutorialStep == 0) {
     Find<Border>("TutorialFile").Opacity = 1;
     SetText("TutorialFileStatus", "已加入 · 等待压缩");
-    SetText("TutorialStageHint", "文件已进入队列。下一步选择压缩强度。");
     Find<Button>("TutorialAction").Content = "已加入队列";
    } else {
     SetText("TutorialFileStatus", "正在压缩示例…");
@@ -101,8 +103,7 @@ namespace UpxDrop {
     }
     if (generation != tutorialGeneration || !tutorialOpen) return;
     SetText("TutorialFileStatus", "8.0 MB → " + tutorialSizes[tutorialPreset]);
-    SetText("TutorialStageHint", "压缩与校验已完成，继续查看结果。");
-    Find<Button>("TutorialAction").Content = "演练完成";
+    Find<Button>("TutorialAction").Content = "已压缩";
    }
    tutorialReady = true; Find<Button>("TutorialNext").IsEnabled = true;
    if (window.IsActive) Find<Button>("TutorialNext").Focus();

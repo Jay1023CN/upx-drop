@@ -32,8 +32,8 @@ namespace UpxDrop {
    SetChecked("PackMode", packing); SetChecked("UnpackMode", !packing);
    SetChecked("BalancedPreset", preset.SelectedIndex == 0); SetChecked("FastPreset", preset.SelectedIndex == 1); SetChecked("BestPreset", preset.SelectedIndex == 2);
    SetEnabled("CompressionOptions", !busy && packing);
-   SetText("ModeHint", packing ? "压缩后校验通过，再替换原文件。" : "还原 UPX 压缩文件，体积会增大。");
-   SetText("DropTitle", packing ? "投放文件" : "投放待解压文件");
+   SetText("ModeHint", packing ? new[] { "兼顾处理速度和文件大小。", "优先处理速度。", "尝试更充分的压缩，耗时较长。" }[preset.SelectedIndex] : "还原 UPX 压缩过的文件，体积会增大。");
+   SetText("DropTitle", packing ? "拖入文件" : "拖入待解压文件");
   }
   void UpdateActivityIndicator() {
    var indicator = Optional<System.Windows.Shapes.Ellipse>("RunIndicator");
@@ -60,7 +60,7 @@ namespace UpxDrop {
   void ResetDrop() {
    var border = Optional<Border>("DropSurface"); if (border == null || !dropHighlighted) return;
    dropHighlighted = false; border.BorderBrush = normalDropBorder; border.Background = normalDropBackground;
-   SetText("DropTitle", mode.SelectedIndex == 0 ? "投放文件" : "投放待解压文件");
+   SetText("DropTitle", mode.SelectedIndex == 0 ? "拖入文件" : "拖入待解压文件");
   }
   void AnimateEntrance() {
    if (!SystemParameters.ClientAreaAnimation) return;

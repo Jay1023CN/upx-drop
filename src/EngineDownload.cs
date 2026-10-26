@@ -15,10 +15,10 @@ namespace UpxDrop {
   }
   public static string InstallEmbedded(string cacheRoot) {
    using (var resource = typeof(EngineDownload).Assembly.GetManifestResourceStream("upx.zip")) {
-    if (resource == null) throw new InvalidDataException("缺少内嵌 UPX，请使用单文件构建脚本重新构建。");
+    if (resource == null) throw new InvalidDataException("未找到内置 UPX，请重新下载软件。");
     using (var data = new MemoryStream()) {
      resource.CopyTo(data); data.Position = 0;
-     if (Hash(data) != Sha256) throw new InvalidDataException("内嵌 UPX 的 SHA-256 校验失败。");
+     if (Hash(data) != Sha256) throw new InvalidDataException("内置 UPX 校验失败，请重新下载软件。");
      data.Position = 0;
      using (var zip = new ZipArchive(data, ZipArchiveMode.Read)) {
       var entry = zip.GetEntry("upx-" + Version + "-win64/upx.exe");

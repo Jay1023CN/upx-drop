@@ -90,7 +90,7 @@ namespace UpxDrop {
    Find<Button>("AddButton").Click += delegate { var d = new OpenFileDialog { Filter = "Windows 程序 (*.exe;*.dll)|*.exe;*.dll", Multiselect = true }; if (d.ShowDialog(window) == true) Add(d.FileNames); };
    engineButton.Click += delegate { var d = new OpenFileDialog { Filter = "官方 UPX (upx.exe)|upx.exe" }; if (d.ShowDialog(window) == true) { engine = d.FileName; UpdateEngine(); Save(); } };
    downloadButton.Click += delegate {
-    try { engine = EngineDownload.InstallEmbedded(); UpdateEngine(); summary.Text = "内嵌 UPX 已重新校验并就绪。"; }
+    try { engine = EngineDownload.InstallEmbedded(); UpdateEngine(); summary.Text = "内置 UPX 已恢复，可以继续处理文件。"; }
     catch (Exception ex) { details.Text = ex.Message; }
    };
    Find<Button>("ProjectButton").Click += delegate { OpenProject(); };
@@ -123,8 +123,8 @@ namespace UpxDrop {
     pendingUpdate = await Updater.DownloadLatestAsync(updateCancellation.Token);
     if (pendingUpdate != null) {
      updateButton.Content = "退出并更新";
-     Find<TextBlock>("UpdateStatus").Text = "新版 " + pendingUpdate.Version + " 已校验，退出后自动更新。";
-    } else if (manual) Find<TextBlock>("UpdateStatus").Text = "未发现更新的正式版本。";
+     Find<TextBlock>("UpdateStatus").Text = "新版 " + pendingUpdate.Version + " 已就绪，退出后安装。";
+    } else if (manual) Find<TextBlock>("UpdateStatus").Text = "当前已是最新版本。";
    } catch (Exception ex) { if (!closeRequested) { Find<TextBlock>("UpdateStatus").Text = "更新不可用，当前版本可继续使用。"; if (manual) details.Text = ex.Message; } }
    finally { updateChecking = false; updateCancellation.Dispose(); updateCancellation = null; updateButton.IsEnabled = true; TryClose(); }
   }
@@ -219,10 +219,10 @@ namespace UpxDrop {
    finally { scanning = false; scanCancellation.Dispose(); scanCancellation = null; progress.IsIndeterminate = false; RefreshQueue(); TryClose(); }
    if (!closeRequested && auto.IsChecked == true && !busy && added > 0) await ProcessQueue();
   }
-  void ShowDetail() { var entry = files.SelectedItem as Entry; details.Text = entry == null ? "选择一行查看路径和 UPX 运行日志。" : entry.Path + Environment.NewLine + entry.Detail; }
+  void ShowDetail() { var entry = files.SelectedItem as Entry; details.Text = entry == null ? "选择文件，查看完整路径和处理日志。" : entry.Path + Environment.NewLine + entry.Detail; }
   async Task ProcessQueue() {
    if (busy || scanning || closeRequested || !entries.Any(e => e.Status == "等待中")) return;
-   if (!File.Exists(engine)) { summary.Text = "请先配置官方 UPX 引擎。"; return; }
+   if (!File.Exists(engine)) { summary.Text = "未找到 UPX，请在“UPX 设置”中恢复或选择 upx.exe。"; return; }
    advanced.IsEnabled = false;
    busy = true; cancellation = new CancellationTokenSource(); start.IsEnabled = false; stop.IsEnabled = true; preset.IsEnabled = mode.IsEnabled = engineButton.IsEnabled = downloadButton.IsEnabled = false;
    bool decompress = mode.SelectedIndex == 1; string level = preset.SelectedIndex == 2 ? "best" : preset.SelectedIndex == 1 ? "fast" : "balanced";
