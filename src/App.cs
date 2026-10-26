@@ -60,7 +60,7 @@ namespace UpxDrop {
    files.SelectionChanged += delegate { ShowDetail(); UpdateActions(); };
    files.SizeChanged += delegate {
     var columns = ((GridView)files.View).Columns;
-    columns[0].Width = Math.Max(190, files.ActualWidth - 376);
+    columns[0].Width = Math.Max(190, files.ActualWidth - 396);
    };
    mode.SelectionChanged += delegate { UpdateMode(); };
    BindModeSelectors();
@@ -82,10 +82,11 @@ namespace UpxDrop {
    };
    files.PreviewKeyDown += delegate(object sender, KeyEventArgs e) { if (e.Key == Key.Delete) { RemoveSelected(); e.Handled = true; } };
    window.PreviewKeyDown += delegate(object sender, KeyEventArgs e) {
+    if (tutorialOpen) { if (e.Key == Key.Escape) { CloseTutorial(); e.Handled = true; } else if (Keyboard.Modifiers == ModifierKeys.Control) e.Handled = true; return; }
     if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control && !scanning) { Find<Button>("AddButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
     if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control) { search.Focus(); search.SelectAll(); e.Handled = true; }
    };
-   window.Loaded += delegate { AnimateEntrance(); }; InstallMotion(); UpdateMode(); RefreshQueue();
+   window.Loaded += delegate { AnimateEntrance(); }; InstallMotion(); InstallTutorial(); UpdateMode(); RefreshQueue();
    Find<Button>("AddButton").Click += delegate { var d = new OpenFileDialog { Filter = "Windows 程序 (*.exe;*.dll)|*.exe;*.dll", Multiselect = true }; if (d.ShowDialog(window) == true) Add(d.FileNames); };
    engineButton.Click += delegate { var d = new OpenFileDialog { Filter = "官方 UPX (upx.exe)|upx.exe" }; if (d.ShowDialog(window) == true) { engine = d.FileName; UpdateEngine(); Save(); } };
    downloadButton.Click += delegate {
@@ -100,9 +101,9 @@ namespace UpxDrop {
    };
    start.Click += async delegate { await ProcessQueue(); }; stop.Click += delegate { if (cancellation != null) cancellation.Cancel(); if (scanCancellation != null) scanCancellation.Cancel(); };
    Find<Button>("ClearButton").Click += delegate { if (busy || scanning) return; foreach (var entry in entries.Where(e => e.Complete).ToList()) entries.Remove(entry); ShowDetail(); RefreshQueue(); };
-   window.PreviewDragOver += delegate(object sender, DragEventArgs e) { e.Effects = !scanning && !closeRequested && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; HighlightDrop(); e.Handled = true; };
+   window.PreviewDragOver += delegate(object sender, DragEventArgs e) { e.Effects = !tutorialOpen && !scanning && !closeRequested && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; if (e.Effects == DragDropEffects.Copy) HighlightDrop(); e.Handled = true; };
    window.DragLeave += delegate { ResetDrop(); };
-   window.PreviewDrop += delegate(object sender, DragEventArgs e) { if (e.Data.GetDataPresent(DataFormats.FileDrop)) Add((string[])e.Data.GetData(DataFormats.FileDrop)); ResetDrop(); e.Handled = true; };
+   window.PreviewDrop += delegate(object sender, DragEventArgs e) { if (!tutorialOpen && e.Data.GetDataPresent(DataFormats.FileDrop)) Add((string[])e.Data.GetData(DataFormats.FileDrop)); ResetDrop(); e.Handled = true; };
    window.Closing += delegate(object sender, CancelEventArgs e) {
     Save();
     if (busy || updateChecking || scanning) {
@@ -177,6 +178,7 @@ namespace UpxDrop {
    long input = entries.Where(e => e.AfterBytes.HasValue).Sum(e => e.BeforeBytes);
    long output = entries.Where(e => e.AfterBytes.HasValue).Sum(e => e.AfterBytes.Value);
    UpdateSizeMeters(input, output);
+   var tutorialEntry = Optional<Button>("EmptyTutorialButton"); if (tutorialEntry != null) tutorialEntry.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
    UpdateActions();
   }
   void RemoveSelected() {

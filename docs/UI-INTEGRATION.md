@@ -1,6 +1,6 @@
 # 界面与功能接入约定
 
-1.2.2 的界面与队列功能已接入。后续调整布局、配色、字体和动效时，可按下面的控件约定复用功能层。
+1.3.0 的界面与队列功能已接入。后续调整布局、配色、字体和动效时，可按下面的控件约定复用功能层。
 
 ## 文件分工
 
@@ -58,3 +58,11 @@ powershell -ExecutionPolicy Bypass -File .\package.ps1
 应用版本位于 `src/Updater.cs` 和 `src/AssemblyInfo.cs`，两处需要一致。匹配版本的 `v主.次.修订` 标签会触发 CI，测试通过后发布正式 Release。普通分支推送只生成构建产物。
 
 应用图标源文件是 `src/Assets/AppIcon.xaml`，窗口与页头共用此矢量资源。修改后运行 `powershell -ExecutionPolicy Bypass -File src/Assets/Export-Icon.ps1`，生成随源码提交的多尺寸 ICO 和 PNG；构建将 ICO 嵌入 EXE。
+
+## 新手演练与排版
+
+`src/Tutorial.cs` 管理独立演示状态，`TutorialOverlay` 在工作区之上显示三步演练。关闭、返回、重开时会废弃尚未完成的演示操作，演练不会调用真实压缩队列或写入用户设置。底部和空队列各有一个入口；`Esc` 退出，Tab 焦点限制在演练面板内，退出后恢复原焦点。
+
+`ModePill`、`PresetPill` 是选项滑动底板；选项改变和尺寸变化时由 `Appearance.cs` 定位，禁用动画时直接到达最终位置。
+
+界面使用 Microsoft YaHei UI，字号仅用 12、13、16、24，字重只用 Normal 与 SemiBold。正文默认 13，辅助信息 12，分区标题 16，应用名称和教程标题 24。

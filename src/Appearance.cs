@@ -46,12 +46,22 @@ namespace UpxDrop {
    UpdateMeter("OutputMeter", peak == 0 ? 0 : output * 1.0 / peak, true);
   }
   Brush normalDropBorder;
+  Brush normalDropBackground;
+  bool dropHighlighted;
   void HighlightDrop() {
    var border = Optional<Border>("DropSurface"); if (border == null) return;
+   if (dropHighlighted) return; dropHighlighted = true;
    if (normalDropBorder == null) normalDropBorder = border.BorderBrush;
+   normalDropBackground = border.Background;
    border.BorderBrush = new SolidColorBrush(Color.FromRgb(37, 99, 235));
+   border.Background = new SolidColorBrush(Color.FromRgb(239, 246, 255));
+   SetText("DropTitle", "松开鼠标，加入队列");
   }
-  void ResetDrop() { var border = Optional<Border>("DropSurface"); if (border != null && normalDropBorder != null) border.BorderBrush = normalDropBorder; }
+  void ResetDrop() {
+   var border = Optional<Border>("DropSurface"); if (border == null || !dropHighlighted) return;
+   dropHighlighted = false; border.BorderBrush = normalDropBorder; border.Background = normalDropBackground;
+   SetText("DropTitle", mode.SelectedIndex == 0 ? "投放文件" : "投放待解压文件");
+  }
   void AnimateEntrance() {
    if (!SystemParameters.ClientAreaAnimation) return;
    var target = Optional<FrameworkElement>("Workspace"); if (target == null) return;
@@ -60,23 +70,41 @@ namespace UpxDrop {
    translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(3, 0, TimeSpan.FromMilliseconds(300)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
   }
   void InstallMotion() {
+   InstallSelectionMotion("ModeSelector", "ModePill");
+   InstallSelectionMotion("PresetSelector", "PresetPill");
    if (!SystemParameters.ClientAreaAnimation) return;
    foreach (string name in new[] { "AddButton", "FolderButton", "StartButton", "StopButton", "RetryButton", "ExportButton" }) {
     var button = Optional<Button>(name); if (button == null) continue; var scale = new ScaleTransform(1, 1);
     button.RenderTransform = scale; button.RenderTransformOrigin = new Point(0.5, 0.5);
-    button.MouseEnter += delegate { AnimateScale(scale, 1.01); };
     button.MouseLeave += delegate { AnimateScale(scale, 1); };
     button.PreviewMouseLeftButtonDown += delegate { AnimateScale(scale, 0.985); };
     button.PreviewMouseLeftButtonUp += delegate { AnimateScale(scale, 1); };
    }
-   foreach (string name in new[] { "PackMode", "UnpackMode", "FastPreset", "BalancedPreset", "BestPreset" }) {
-    var radio = Optional<RadioButton>(name); if (radio == null) continue;
-    radio.Checked += delegate { radio.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.6, 1, TimeSpan.FromMilliseconds(130))); };
-   }
-   foreach (string name in new[] { "AdvancedExpander", "DetailsExpander" }) {
+   foreach (string name in new[] { "AdvancedExpander", "DetailsExpander", "EngineExpander" }) {
     var expander = Optional<Expander>(name); if (expander == null) continue; var content = expander.Content as FrameworkElement; if (content == null) continue;
-    expander.Expanded += delegate { content.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180))); };
+    expander.Expanded += delegate {
+     content.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+     var shift = new TranslateTransform(0, -5); content.RenderTransform = shift;
+     shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
+    };
    }
+  }
+  void InstallSelectionMotion(string selectorName, string pillName) {
+   var selector = Optional<System.Windows.Controls.Primitives.UniformGrid>(selectorName); var pill = Optional<Border>(pillName);
+   if (selector == null || pill == null) return;
+   var slide = new TranslateTransform(); pill.RenderTransform = slide;
+   Action<bool> position = animate => {
+    if (selector.ActualWidth <= 0 || selector.Children.Count == 0) return;
+    double width = selector.ActualWidth / selector.Children.Count; int selected = 0;
+    for (int i = 0; i < selector.Children.Count; i++) if (((RadioButton)selector.Children[i]).IsChecked == true) selected = i;
+    double previous = slide.X, target = width * selected; pill.Width = width;
+    slide.BeginAnimation(TranslateTransform.XProperty, null); slide.X = target;
+    if (animate && SystemParameters.ClientAreaAnimation) slide.BeginAnimation(TranslateTransform.XProperty,
+     new DoubleAnimation(previous, target, TimeSpan.FromMilliseconds(190)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, FillBehavior = FillBehavior.Stop });
+   };
+   selector.SizeChanged += delegate { position(false); };
+   selector.IsEnabledChanged += delegate { pill.Opacity = selector.IsEnabled ? 1 : 0.45; };
+   foreach (RadioButton radio in selector.Children) radio.Checked += delegate { position(true); };
   }
   static void AnimateScale(ScaleTransform transform, double value) {
    var animation = new DoubleAnimation(value, TimeSpan.FromMilliseconds(120)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
