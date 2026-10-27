@@ -15,6 +15,28 @@ namespace UpxDrop {
    }
   }
   T Optional<T>(string name) where T : class { return window.FindName(name) as T; }
+  static T VisualChild<T>(DependencyObject parent) where T : DependencyObject {
+   for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++) {
+    var child = VisualTreeHelper.GetChild(parent, i); var match = child as T;
+    if (match != null) return match;
+    match = VisualChild<T>(child); if (match != null) return match;
+   }
+   return null;
+  }
+  void InstallEmptyStateLayout() {
+   var host = Optional<Grid>("EmptyStateHost"); var icon = Optional<Border>("EmptyIcon"); var hint = Optional<TextBlock>("EmptyHint");
+   if (host == null || icon == null || hint == null) return;
+   files.LayoutUpdated += delegate {
+    if (files.Items.Count != 0) return;
+    var header = VisualChild<GridViewHeaderRowPresenter>(files);
+    if (header != null && header.ActualHeight > 0) {
+     double top = Math.Ceiling(header.TranslatePoint(new Point(0, header.ActualHeight), files).Y);
+     if (Math.Abs(host.Margin.Top - top) > 0.1) host.Margin = new Thickness(0, top, 0, 0);
+    }
+    icon.Visibility = host.ActualHeight < 164 ? Visibility.Collapsed : Visibility.Visible;
+    hint.Visibility = host.ActualHeight < 120 ? Visibility.Collapsed : Visibility.Visible;
+   };
+  }
   void BindModeSelectors() {
    SetText("AppVersion", "v" + Updater.CurrentVersion);
    BindSelector("PackMode", mode, 0); BindSelector("UnpackMode", mode, 1);

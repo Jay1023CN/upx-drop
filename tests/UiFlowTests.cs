@@ -48,8 +48,15 @@ class UiFlowTests {
   var window = Field<Window>(p, "window");
   var host = window.Content as Border;
   if (host == null) { var content = (UIElement)window.Content; window.Content = null; host = new Border { Background = window.Background, Child = content }; window.Content = host; }
-  host.Measure(new Size(width, height)); host.Arrange(new Rect(0, 0, width, height)); host.UpdateLayout();
+  host.Measure(new Size(width, height)); host.Arrange(new Rect(0, 0, width, height)); host.UpdateLayout(); host.UpdateLayout();
   return host;
+ }
+ static T Descendant<T>(DependencyObject root) where T : DependencyObject {
+  for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++) {
+   var child = VisualTreeHelper.GetChild(root, i); var result = child as T ?? Descendant<T>(child);
+   if (result != null) return result;
+  }
+  return null;
  }
  static void Capture(Program p, string path, int width, int height) {
   var host = Host(p, width, height);
@@ -63,6 +70,18 @@ class UiFlowTests {
    var bounds = button.TransformToAncestor(drop).TransformBounds(new Rect(button.RenderSize));
    Check(bounds.Top >= 0 && bounds.Bottom <= drop.ActualHeight, name + " stays inside the drop area at " + width);
   }
+  if (Control<ListView>(p, "Files").Items.Count == 0 && Control<Grid>(p, "TutorialOverlay").Visibility == Visibility.Collapsed) {
+   var list = Control<ListView>(p, "Files"); var empty = Control<StackPanel>(p, "EmptyState");
+   var header = Descendant<GridViewHeaderRowPresenter>(list);
+   var emptyBounds = empty.TransformToVisual(list).TransformBounds(new Rect(empty.RenderSize));
+   double headerBottom = header.TranslatePoint(new Point(0, header.ActualHeight), list).Y;
+   Check(emptyBounds.Top >= headerBottom - 1 && emptyBounds.Bottom <= list.ActualHeight + 1, "empty state stays below headers and inside the list at " + width + " (top=" + emptyBounds.Top + ", bottom=" + emptyBounds.Bottom + ", header=" + headerBottom + ", list=" + list.ActualHeight + ")");
+   var icon = Control<Border>(p, "EmptyIcon"); var glyph = Control<System.Windows.Shapes.Path>(p, "EmptyFileGlyph");
+   if (icon.IsVisible || icon.Visibility == Visibility.Visible) {
+    var shapeBounds = glyph.TransformToAncestor(icon).TransformBounds(glyph.RenderedGeometry.Bounds);
+    Check(Math.Abs((shapeBounds.Left + shapeBounds.Right) / 2 - icon.ActualWidth / 2) <= 1 && Math.Abs((shapeBounds.Top + shapeBounds.Bottom) / 2 - icon.ActualHeight / 2) <= 1, "file glyph is centered in its circle");
+   }
+  }
   var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(host);
   var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
   using (var output = File.Create(path)) encoder.Save(output);
@@ -73,30 +92,31 @@ class UiFlowTests {
    var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
    SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
    var p = Init(Path.Combine(root, "settings.txt"));
-   // Practice uses its own state and must never mutate the live queue or settings.
    int originalPreset = Control<ComboBox>(p, "Preset").SelectedIndex;
    Click(p, "TutorialButton");
    Check(Control<Grid>(p, "TutorialOverlay").Visibility == Visibility.Visible && !Control<FrameworkElement>(p, "Workspace").IsEnabled, "tutorial opens with background interaction blocked");
-   Check(!Control<Button>(p, "TutorialNext").IsEnabled, "tutorial waits for the sample action");
+   Check(Control<Button>(p, "TutorialNext").IsEnabled && Field<Window>(p, "window").FindName("TutorialAction") == null, "tutorial allows immediate navigation without sample tasks");
    Capture(p, Path.Combine(Path.GetDirectoryName(args[0]), "preview-tutorial-start.png"), 1060, 700);
    var tutorialCard = Control<Border>(p, "TutorialCard"); var tutorialHost = Host(p, 1060, 700);
    var tutorialBounds = tutorialCard.TransformToAncestor(tutorialHost).TransformBounds(new Rect(tutorialCard.RenderSize));
    Check(tutorialBounds.Top >= 0 && tutorialBounds.Bottom <= 700 && tutorialBounds.Left >= 0 && tutorialBounds.Right <= 1060, "tutorial fits compact window");
-   Click(p, "TutorialAction"); Click(p, "TutorialNext"); Click(p, "TutorialBest");
-   Click(p, "TutorialAction");
-   PumpUntil(() => Control<Button>(p, "TutorialNext").IsEnabled);
-   Check(Control<TextBlock>(p, "TutorialFileStatus").Text.Contains("2.1 MB"), "practice compresses selected example without touching files");
+   Click(p, "TutorialNext");
+   Check(Control<TextBlock>(p, "TutorialStepLabel").Text == "2 / 3" && Control<Button>(p, "TutorialNext").IsEnabled, "compression preview never blocks next page");
+   PumpUntil(() => Control<TextBlock>(p, "TutorialFileStatus").Text.Contains("2.4 MB"));
+   Check(Control<TextBlock>(p, "TutorialFileStatus").Text.Contains("2.4 MB"), "compression preview plays automatically");
    Click(p, "TutorialNext");
    Capture(p, Path.Combine(Path.GetDirectoryName(args[0]), "preview-tutorial-result.png"), 1060, 700);
    Check(Control<Button>(p, "TutorialNext").Content.ToString() == "开始使用", "tutorial reaches result page");
-   Click(p, "TutorialNext");
+   Click(p, "TutorialBack"); Click(p, "TutorialNext"); Click(p, "TutorialNext");
    Check(Control<Grid>(p, "TutorialOverlay").Visibility == Visibility.Collapsed && Control<FrameworkElement>(p, "Workspace").IsEnabled, "finishing tutorial restores workspace");
    Check(Field<ObservableCollection<Entry>>(p, "entries").Count == 0 && Control<ComboBox>(p, "Preset").SelectedIndex == originalPreset, "tutorial leaves live queue and presets unchanged");
-   Click(p, "TutorialButton"); Click(p, "TutorialAction"); Click(p, "TutorialNext"); Click(p, "TutorialAction");
+   Click(p, "TutorialButton"); Click(p, "TutorialNext");
    Click(p, "TutorialClose"); Click(p, "TutorialButton");
    var settling = Stopwatch.StartNew(); PumpUntil(() => settling.ElapsedMilliseconds > 850);
-   Check(Control<TextBlock>(p, "TutorialStepLabel").Text == "1 / 3" && !Control<Button>(p, "TutorialNext").IsEnabled, "closing and reopening discards pending practice completion");
+   Check(Control<TextBlock>(p, "TutorialStepLabel").Text == "1 / 3" && !Control<TextBlock>(p, "TutorialFileStatus").Text.Contains("2.4 MB") && Control<Button>(p, "TutorialNext").IsEnabled, "closing and reopening discards previous preview results");
    Click(p, "TutorialClose");
+   Capture(p, Path.Combine(Path.GetDirectoryName(args[0]), "preview-empty.png"), 1180, 780);
+   Capture(p, Path.Combine(Path.GetDirectoryName(args[0]), "preview-empty-compact.png"), 1060, 700);
    typeof(Program).GetField("engine", Private).SetValue(p, Path.GetFullPath(args[0]));
    var entries = Field<ObservableCollection<Entry>>(p, "entries");
    string folder = Path.Combine(root, "queue"); Directory.CreateDirectory(folder);

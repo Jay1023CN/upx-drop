@@ -37,17 +37,36 @@ drop.ondragenter=e=>{e.preventDefault();dragDepth++;drop.classList.add('dragover
 function resetDrag(){dragDepth=0;drop.classList.remove('dragover');$('drop-title').textContent=mode==='pack'?'拖入文件':'拖入待解压文件';}
 drop.ondragleave=e=>{e.preventDefault();if(--dragDepth<=0)resetDrag();};drop.ondrop=e=>{e.preventDefault();resetDrag();const names=[...e.dataTransfer.files].map(f=>f.name).filter(n=>/\.(exe|dll)$/i.test(n));if(names.length)addExamples(names);else{$('summary').textContent='请拖入 EXE 或 DLL，也可点击“添加示例”。';}};
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
-let step=0,lessonPreset=1,lessonReady=false,lessonGeneration=0,returnFocus=null;
-const sizes=['3.2 MB','2.4 MB','2.1 MB'];
+let step=0,lessonGeneration=0,returnFocus=null;
 const titles=['添加文件','选择压缩强度','查看处理结果'];
-const bodies=['先点“添加示例”试一次。正式使用时，把 EXE、DLL 或文件夹拖进窗口，也可以点“添加文件”。','选好强度，点“压缩示例”。平时用“均衡”就行，想快一点可以选“快速”。','这里能看到文件状态和前后大小。处理失败就点“重试未完成”，要保存结果就导出 CSV。'];
-function showLesson(){lessonGeneration++;lessonReady=step===2;$('step-label').textContent=`${step+1} / 3`;$('tutorial-title').textContent=titles[step];$('tutorial-body').textContent=bodies[step];$('tutorial-note').textContent=['教程用的是示例，不会动你的文件。','“添加后自动开始”打开时，加入文件就会开始处理。','想留下原文件，处理前勾选“保留原文件备份”。'][step];$('sample-status').textContent=step===0?'示例文件 · 8.0 MB':step===1?'已加入 · 等待压缩':'已压缩 · 8.0 MB → '+sizes[lessonPreset];$('tutorial-presets').hidden=step!==1;$('sample-file').classList.toggle('pending',step===0);$('practice-progress').style.width=step===2?'100%':'0%';$('practice-action').style.visibility=step===2?'hidden':'visible';$('practice-action').disabled=false;$('practice-action').textContent=step===0?'添加示例':'压缩示例';$('tutorial-back').disabled=step===0;$('tutorial-next').textContent=step===2?'开始使用':'下一步';$('tutorial-next').disabled=!lessonReady;document.querySelectorAll('[data-lesson]').forEach(b=>b.setAttribute('aria-pressed',Number(b.dataset.lesson)===lessonPreset));document.querySelectorAll('.step-dots i').forEach((dot,i)=>dot.classList.toggle('active',i<=step));$('tutorial-page').classList.remove('enter');void $('tutorial-page').offsetWidth;$('tutorial-page').classList.add('enter');}
-function openTutorial(){returnFocus=document.activeElement;step=0;lessonPreset=1;showLesson();$('tutorial').showModal();$('practice-action').focus();}
+const bodies=['把 EXE、DLL 或文件夹拖进窗口，也可以点“添加文件”。','选好强度后，点“开始压缩”。平时用“均衡”就行，想快一点可以选“快速”。','这里能看到文件状态和前后大小。处理失败就点“重试未完成”，要保存结果就导出 CSV。'];
+function showLesson(){
+ const generation=++lessonGeneration;
+ $('step-label').textContent=`${step+1} / 3`;
+ $('tutorial-title').textContent=titles[step];$('tutorial-body').textContent=bodies[step];
+ $('tutorial-note').textContent=['要一次加入多个文件，可以直接拖入文件夹。','“添加后自动开始”打开时，加入文件就会开始处理。','想留下原文件，处理前勾选“保留原文件备份”。'][step];
+ $('sample-status').textContent=step===0?'拖入文件 · 8.0 MB':step===1?'正在压缩…':'已压缩 · 8.0 MB → 2.4 MB';
+ $('tutorial-presets').hidden=step!==1;$('sample-file').classList.toggle('pending',step===0);
+ $('practice-progress').parentElement.style.visibility=step===0?'hidden':'visible';
+ $('practice-progress').style.width=step===2?'100%':'0%';
+ $('tutorial-back').disabled=step===0;$('tutorial-next').textContent=step===2?'开始使用':'下一步';$('tutorial-next').disabled=false;
+ document.querySelectorAll('.step-dots i').forEach((dot,i)=>dot.classList.toggle('active',i<=step));
+ $('tutorial-page').classList.remove('enter');void $('tutorial-page').offsetWidth;$('tutorial-page').classList.add('enter');
+ playPreview(generation,step);
+}
+async function playPreview(generation,page){
+ if(page===2)return;
+ await pause(120);
+ if(generation!==lessonGeneration||!$('tutorial').open)return;
+ if(page===0)$('sample-file').classList.remove('pending');else $('practice-progress').style.width='100%';
+ await pause(page===0?350:700);
+ if(generation!==lessonGeneration||!$('tutorial').open)return;
+ $('sample-status').textContent=page===0?'已加入队列 · 8.0 MB':'已压缩 · 8.0 MB → 2.4 MB';
+}
+function openTutorial(){returnFocus=document.activeElement;step=0;$('tutorial').showModal();showLesson();$('tutorial-next').focus();}
 function closeTutorial(){lessonGeneration++;$('tutorial').close();if(returnFocus&&returnFocus.isConnected)returnFocus.focus();}
 ['empty-tutorial','footer-tutorial'].forEach(id=>$(id).onclick=openTutorial);
 $('tutorial-close').onclick=closeTutorial;$('tutorial').addEventListener('cancel',e=>{e.preventDefault();closeTutorial();});
-$('tutorial-back').onclick=()=>{if(step>0){step--;showLesson();$('practice-action').focus();}};
-$('tutorial-next').onclick=()=>{if(!lessonReady)return;if(step===2){closeTutorial();return;}step++;showLesson();(step===2?$('tutorial-next'):$('practice-action')).focus();};
-document.querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>{lessonPreset=Number(b.dataset.lesson);showLesson();});
-$('practice-action').onclick=async()=>{const generation=lessonGeneration;$('practice-action').disabled=true;if(step===0){$('sample-file').classList.remove('pending');$('sample-status').textContent='已加入 · 等待压缩';$('practice-action').textContent='已加入队列';}else{$('sample-status').textContent='正在压缩示例…';$('practice-progress').style.width='100%';await pause(750);if(generation!==lessonGeneration||!$('tutorial').open)return;$('sample-status').textContent='已压缩 · 8.0 MB → '+sizes[lessonPreset];$('practice-action').textContent='已压缩';}lessonReady=true;$('tutorial-next').disabled=false;$('tutorial-next').focus();};
+$('tutorial-back').onclick=()=>{if(step>0){step--;showLesson();$('tutorial-next').focus();}};
+$('tutorial-next').onclick=()=>{if(step===2){closeTutorial();return;}step++;showLesson();$('tutorial-next').focus();};
 renderQueue();

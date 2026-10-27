@@ -86,7 +86,7 @@ namespace UpxDrop {
     if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control && !scanning) { Find<Button>("AddButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
     if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control) { search.Focus(); search.SelectAll(); e.Handled = true; }
    };
-   window.Loaded += delegate { AnimateEntrance(); }; InstallMotion(); InstallTutorial(); UpdateMode(); RefreshQueue();
+   window.Loaded += delegate { AnimateEntrance(); }; InstallMotion(); InstallEmptyStateLayout(); InstallTutorial(); UpdateMode(); RefreshQueue();
    Find<Button>("AddButton").Click += delegate { var d = new OpenFileDialog { Filter = "Windows 程序 (*.exe;*.dll)|*.exe;*.dll", Multiselect = true }; if (d.ShowDialog(window) == true) Add(d.FileNames); };
    engineButton.Click += delegate { var d = new OpenFileDialog { Filter = "官方 UPX (upx.exe)|upx.exe" }; if (d.ShowDialog(window) == true) { engine = d.FileName; UpdateEngine(); Save(); } };
    downloadButton.Click += delegate {

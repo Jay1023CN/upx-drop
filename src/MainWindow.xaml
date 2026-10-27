@@ -77,7 +77,7 @@
      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
       <TextBlock Text="UPX Drop" FontSize="24" FontWeight="SemiBold" Foreground="#0F172A"/>
       <Border Background="#F1F5F9" CornerRadius="4" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-       <TextBlock x:Name="AppVersion" Text="v1.3.1" FontSize="12" FontWeight="SemiBold" Foreground="#475569"/>
+       <TextBlock x:Name="AppVersion" Text="v1.3.2" FontSize="12" FontWeight="SemiBold" Foreground="#475569"/>
       </Border>
      </StackPanel>
      <TextBlock Text="EXE / DLL 批量压缩与解压" FontSize="12" Foreground="#64748B" Margin="0,2,0,0"/>
@@ -231,20 +231,22 @@
        </ListView.View>
       </ListView>
       <!-- Empty State -->
-      <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center">
-       <StackPanel.Style>
-        <Style TargetType="StackPanel">
+      <Grid x:Name="EmptyStateHost" Grid.Row="2" Margin="0,36,0,0" ClipToBounds="True">
+       <Grid.Style>
+        <Style TargetType="Grid">
          <Setter Property="Visibility" Value="Collapsed"/>
          <Style.Triggers><DataTrigger Binding="{Binding HasItems, ElementName=Files}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers>
         </Style>
-       </StackPanel.Style>
-       <Border Width="52" Height="52" CornerRadius="26" Background="#F1F5F9" HorizontalAlignment="Center">
-        <Path Data="M 14 9 L 26 9 L 34 17 L 34 39 L 14 39 Z M 26 9 L 26 17 L 34 17 M 20 27 L 28 27 M 24 23 L 24 31" Stroke="#94A3B8" StrokeThickness="1.8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+       </Grid.Style>
+       <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,6">
+       <Border x:Name="EmptyIcon" Width="52" Height="52" CornerRadius="26" Background="#F1F5F9" HorizontalAlignment="Center">
+        <Path x:Name="EmptyFileGlyph" Width="26" Height="34" Stretch="Uniform" Data="M 1 1 L 13 1 L 21 9 L 21 31 L 1 31 Z M 13 1 L 13 9 L 21 9 M 7 20 L 15 20 M 11 16 L 11 24" Stroke="#94A3B8" StrokeThickness="1.8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
        </Border>
        <TextBlock x:Name="EmptyTitle" Text="还没有文件" Foreground="#334155" FontSize="16" FontWeight="SemiBold" Margin="0,12,0,0" HorizontalAlignment="Center"/>
        <TextBlock x:Name="EmptyHint" Text="拖入 EXE、DLL 文件或文件夹即可开始" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" HorizontalAlignment="Center"/>
-       <Button x:Name="EmptyTutorialButton" Content="用示例练习" Style="{StaticResource QuietButton}" Foreground="#2563EB" Margin="0,12,0,0" HorizontalAlignment="Center"/>
-      </StackPanel>
+       <Button x:Name="EmptyTutorialButton" Content="查看新手教程" Style="{StaticResource QuietButton}" Foreground="#2563EB" Margin="0,12,0,0" HorizontalAlignment="Center"/>
+       </StackPanel>
+      </Grid>
       <!-- Queue Footer Toolbar -->
       <Border Grid.Row="3" BorderBrush="#F1F5F9" BorderThickness="0,1,0,0" Padding="12,8">
        <Grid>
@@ -401,9 +403,9 @@
      </Grid>
      <Grid x:Name="TutorialPage" Grid.Row="1">
       <Grid.ColumnDefinitions><ColumnDefinition Width="350"/><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Border Background="#F1F5F9" CornerRadius="12" Padding="24">
+      <Border Background="#F1F5F9" CornerRadius="12" Padding="24" MinHeight="260">
        <StackPanel>
-        <TextBlock Text="示例文件" FontSize="12" Foreground="#64748B"/>
+        <TextBlock Text="操作示意" FontSize="12" Foreground="#64748B"/>
         <Border x:Name="TutorialFile" Margin="0,20,0,18" Padding="20" Background="White" CornerRadius="8" BorderBrush="#CBD5E1" BorderThickness="1">
          <StackPanel>
           <TextBlock Text="EXE" FontWeight="SemiBold" FontSize="24" Foreground="#2563EB"/>
@@ -412,22 +414,21 @@
          </StackPanel>
         </Border>
         <ProgressBar x:Name="TutorialProgress" Minimum="0" Maximum="100" Value="0" Height="5" BorderThickness="0" Background="#DBEAFE" Foreground="#2563EB" Margin="0,12,0,16"/>
-        <Button x:Name="TutorialAction" Content="添加示例" Foreground="#1D4ED8" BorderBrush="#93C5FD" MinHeight="40"/>
        </StackPanel>
       </Border>
       <StackPanel Grid.Column="2" VerticalAlignment="Center">
        <TextBlock x:Name="TutorialTitle" Text="添加文件" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap"/>
-       <TextBlock x:Name="TutorialBody" Text="先点“添加示例”试一次。正式使用时，把 EXE、DLL 或文件夹拖进窗口，也可以点“添加文件”。" FontSize="13" Foreground="#475569" TextWrapping="Wrap" LineHeight="25" Margin="0,16,0,20"/>
+       <TextBlock x:Name="TutorialBody" Text="把 EXE、DLL 或文件夹拖进窗口，也可以点“添加文件”。" FontSize="13" Foreground="#475569" TextWrapping="Wrap" LineHeight="25" Margin="0,16,0,20"/>
        <StackPanel x:Name="TutorialPresets" Visibility="Collapsed">
         <TextBlock Text="压缩强度" Foreground="#64748B" FontSize="12" Margin="0,0,0,8"/>
         <UniformGrid Columns="3">
-         <Button x:Name="TutorialFast" Content="快速" Margin="0,0,5,0"/>
-         <Button x:Name="TutorialBalanced" Content="均衡" Margin="0,0,5,0"/>
-         <Button x:Name="TutorialBest" Content="极致"/>
+         <Border Background="#F1F5F9" CornerRadius="6" Padding="10,8" Margin="0,0,5,0"><TextBlock Text="快速" HorizontalAlignment="Center" Foreground="#475569"/></Border>
+         <Border Background="#DBEAFE" CornerRadius="6" Padding="10,8" Margin="0,0,5,0"><TextBlock Text="均衡" HorizontalAlignment="Center" Foreground="#475569"/></Border>
+         <Border Background="#F1F5F9" CornerRadius="6" Padding="10,8" Margin="0,0,5,0"><TextBlock Text="极致" HorizontalAlignment="Center" Foreground="#475569"/></Border>
         </UniformGrid>
        </StackPanel>
        <Border BorderBrush="#CBD5E1" BorderThickness="2,0,0,0" Padding="12,0,0,0" Margin="0,16,0,0">
-        <TextBlock x:Name="TutorialNote" Text="教程用的是示例，不会动你的文件。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" LineHeight="21"/>
+        <TextBlock x:Name="TutorialNote" Text="要一次加入多个文件，可以直接拖入文件夹。" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" LineHeight="21"/>
        </Border>
       </StackPanel>
      </Grid>
@@ -439,7 +440,7 @@
       </StackPanel>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
        <Button x:Name="TutorialBack" Content="上一步" Style="{StaticResource QuietButton}" Margin="0,0,12,0"/>
-       <Button x:Name="TutorialNext" Content="下一步" MinWidth="112" Foreground="#1D4ED8" Background="#EFF6FF" BorderBrush="#BFDBFE"/>
+       <Button x:Name="TutorialNext" IsDefault="True" Content="下一步" MinWidth="112" Foreground="#1D4ED8" Background="#EFF6FF" BorderBrush="#BFDBFE"/>
       </StackPanel>
      </Grid>
     </Grid>
